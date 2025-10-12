@@ -1,10 +1,10 @@
 {
-  "name": "pinpet-sdk",
+  "name": "spin-sdk",
   "version": "0.1.0",
-  "description": "Solana Anchor  SDK",
-  "main": "dist/pinpet-sdk.cjs.js",
-  "module": "dist/pinpet-sdk.esm.js",
-  "browser": "dist/pinpet-sdk.js",
+  "description": "Solana Anchor 合约的 SDK",
+  "main": "dist/spin-sdk.cjs.js",
+  "module": "dist/spin-sdk.esm.js",
+  "browser": "dist/spin-sdk.js",
   "scripts": {
     "build": "rollup -c",
     "build:dev": "rollup -c -w",

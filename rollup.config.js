@@ -14,7 +14,7 @@ module.exports = [
   {
     input: 'src/index.js',
     output: {
-      file: 'dist/pinpet-sdk.cjs.js',
+      file: 'dist/spin-sdk.cjs.js',
       format: 'cjs',
       name: 'SpinSDK',
       exports: 'named',
@@ -37,7 +37,7 @@ module.exports = [
   {
     input: 'src/index.js',
     output: {
-      file: 'dist/pinpet-sdk.esm.js',
+      file: 'dist/spin-sdk.esm.js',
       format: 'es',
       sourcemap: !isProd,
     },
@@ -58,7 +58,7 @@ module.exports = [
   {
     input: 'src/index.js',
     output: {
-      file: 'dist/pinpet-sdk.js',
+      file: 'dist/spin-sdk.js',
       format: 'umd',
       name: 'SpinSDK',
       exports: 'named',
