@@ -1,5 +1,7 @@
 const anchor = require('@coral-xyz/anchor');
 const { PublicKey } = require('@solana/web3.js');
+const fs = require('fs');
+const path = require('path');
 const TradingModule = require('./modules/trading');
 const TokenModule = require('./modules/token');
 const ParamModule = require('./modules/param');
@@ -7,6 +9,7 @@ const FastModule = require('./modules/fast');
 const SimulatorModule = require('./modules/simulator');
 const ChainModule = require('./modules/chain');
 const OrderUtils = require('./utils/orderUtils');
+const CurveAMM = require('./utils/curve_amm');
 const spinpetIdl = require('./idl/spinpet.json');
 
 /**
@@ -22,6 +25,7 @@ class SpinPetSdk {
    * @param {Object} options - Configuration options (optional)
    */
   constructor(connection, programId, options = {}) {
+    //console.log("SpinPetSdk options=",options)
     // Save configuration options
     this.options = options;
     
@@ -29,6 +33,8 @@ class SpinPetSdk {
     if (options.defaultDataSource && !['fast', 'chain'].includes(options.defaultDataSource)) {
       throw new Error('defaultDataSource must be "fast" or "chain"');
     }
+
+   //console.log("options.defaultDataSource",options.defaultDataSource)
     this.defaultDataSource = options.defaultDataSource || 'fast';
     console.log('Data source method:', this.defaultDataSource);
     
@@ -48,6 +54,35 @@ class SpinPetSdk {
     // Maximum number of orders to fetch during queries
     this.FIND_MAX_ORDERS_COUNT = 1000
 
+    // 在流动性不足时, 建议实际使用流动性的比例, 分每 (1000=100%)
+    this.SUGGEST_LIQ_RATIO = 975; // 97.5% (1000=100%)
+
+    // 如果设置了调试日志路径, 就会输出一些调试数据,如果没有设置, 则不输出
+    this.debugLogPath = this.options.debug_log_path || this.options.debugLogPath || null;
+    
+    // 如果设置了调试日志路径，删除旧的 orderPda.txt 文件以确保文件是最新的
+    if (this.debugLogPath && typeof this.debugLogPath === 'string') {
+      const orderPdaFilePath = path.join(this.debugLogPath, 'orderPda.txt');
+      try {
+        if (fs.existsSync(orderPdaFilePath)) {
+          fs.unlinkSync(orderPdaFilePath);
+        }
+      } catch (error) {
+        console.warn('Warning: Failed to delete orderPda.txt:', error.message);
+      }
+      const orderOpenFilePath = path.join(this.debugLogPath, 'orderOpen.txt');
+      try {
+        if (fs.existsSync(orderOpenFilePath)) {
+          fs.unlinkSync(orderOpenFilePath);
+        }
+      } catch (error) {
+        console.warn('Warning: Failed to delete orderOpen.txt:', error.message);
+      }
+
+
+    }
+
+
     // Initialize Anchor program
     this.program = this._initProgram(this.options);
     
@@ -58,6 +93,9 @@ class SpinPetSdk {
     this.fast = new FastModule(this);
     this.simulator = new SimulatorModule(this);
     this.chain = new ChainModule(this);
+    
+    // Initialize curve AMM utility
+    this.curve = CurveAMM;
     
     // Initialize unified data interface
     this.data = {

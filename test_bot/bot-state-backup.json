@@ -1,0 +1,124 @@
+{
+  "config": {
+    "network": "LOCALNET",
+    "walletIndex": 0,
+    "tokenInfo": {
+      "name": "TestBot Token",
+      "symbol": "TBT",
+      "uri": "https://example.com/testbot-token.json"
+    },
+    "tradingPlan": [
+      {
+        "type": "create-token",
+        "enabled": true,
+        "description": "创建测试代币",
+        "params": {}
+      },
+      {
+        "type": "buy",
+        "enabled": true,
+        "description": "买入100,000个代币",
+        "params": {
+          "buyTokenAmount": "1000000000",
+          "maxSolAmount": "5000000000"
+        }
+      },
+      {
+        "type": "sell",
+        "enabled": true,
+        "description": "卖出50,000个代币",
+        "params": {
+          "sellTokenAmount": "500000000",
+          "minSolOutput": "10"
+        }
+      }
+    ],
+    "logFile": "logs/trading.log"
+  },
+  "state": {
+    "token": {
+      "mintAddress": "9StiQAZvMFaWRi2vDjtXLVMc42NHZnAiBzrPEY9h673e",
+      "mintKeypair": "5RbSWiHunAQn8XcddYt1iGcGkCk4fzx2hMDmZA7Gj3hgo1jv4rQLtWWumqHRLGveiVHma3LjCcu3FRkcAuqjz24Y",
+      "curveAccount": "9AUoa9EBvXe1PdK5BLhpgNeeiNckWrkJCwBfbYEqinYq",
+      "poolTokenAccount": "DkPsbbpuKpkouka8EKUpCbVonDZpn2fhtD1e9NArb59P",
+      "poolSolAccount": "DMUMofQLFdrAxP6vpS4pmWQGvXSj6YK1uQm8zzgdDxH6",
+      "createdAt": "2025-09-05T02:09:08.179Z",
+      "createTxSignature": "XPcfPqoSEJQohBGHsigEYV88Y12ud6RPtcQtLmfHafYfVywyLqd1MJBPu2Dwvohaakd4jYJCc3BV3eNkxEbx2u1"
+    },
+    "tradingHistory": [
+      {
+        "type": "create-token",
+        "description": "创建代币 TestBot Token (TBT)",
+        "status": "completed",
+        "txSignature": "XPcfPqoSEJQohBGHsigEYV88Y12ud6RPtcQtLmfHafYfVywyLqd1MJBPu2Dwvohaakd4jYJCc3BV3eNkxEbx2u1",
+        "mintAddress": "9StiQAZvMFaWRi2vDjtXLVMc42NHZnAiBzrPEY9h673e",
+        "accounts": {
+          "mint": "9StiQAZvMFaWRi2vDjtXLVMc42NHZnAiBzrPEY9h673e",
+          "curveAccount": "9AUoa9EBvXe1PdK5BLhpgNeeiNckWrkJCwBfbYEqinYq",
+          "poolTokenAccount": "DkPsbbpuKpkouka8EKUpCbVonDZpn2fhtD1e9NArb59P",
+          "poolSolAccount": "DMUMofQLFdrAxP6vpS4pmWQGvXSj6YK1uQm8zzgdDxH6"
+        },
+        "duration": "0.32s",
+        "timestamp": "2025-09-05T02:09:08.179Z",
+        "index": 0
+      },
+      {
+        "type": "buy",
+        "description": "买入 1000 个代币",
+        "status": "completed",
+        "txSignature": "4RwSf8HiTtzNwwtVyA8vmsbpSj6dzFo82pUpuZA7HTsMVAQKPRD339momo5quvyL4PX1MvXUtwvbbCFBfxahtHNj",
+        "mintAddress": "9StiQAZvMFaWRi2vDjtXLVMc42NHZnAiBzrPEY9h673e",
+        "params": {
+          "buyTokenAmount": "1000000000",
+          "maxSolAmount": "5000000000"
+        },
+        "results": {
+          "actualTokenBalance": "1000000000",
+          "solSpent": "2072519",
+          "userTokenAccount": "2QRroTkPQHZwgprHMaJvrzsCZWgSJK9eqS3LbHQzCEME"
+        },
+        "duration": "0.46s",
+        "timestamp": "2025-09-05T02:09:10.647Z",
+        "index": 1
+      },
+      {
+        "type": "sell",
+        "description": "卖出 500.00 个代币",
+        "status": "completed",
+        "txSignature": "vu9Ah8vGu5mazoBemjxiXQumFtGJV6oni1AF6EsA3Z8AZ7J4w6sFkWmgG5TTdJga2WZx5gaKQB2wXAhKrS1p9pD",
+        "mintAddress": "9StiQAZvMFaWRi2vDjtXLVMc42NHZnAiBzrPEY9h673e",
+        "params": {
+          "sellTokenAmount": "500000000",
+          "minSolOutput": "10"
+        },
+        "results": {
+          "tokensSold": "500000000",
+          "solReceived": "8841",
+          "newTokenBalance": "500000000",
+          "avgPrice": "0.017682000",
+          "userTokenAccount": "2QRroTkPQHZwgprHMaJvrzsCZWgSJK9eqS3LbHQzCEME"
+        },
+        "duration": "0.43s",
+        "timestamp": "2025-09-05T02:09:13.081Z",
+        "index": 2
+      }
+    ],
+    "positions": {
+      "spotBalance": "500000000",
+      "longPositions": [],
+      "shortPositions": []
+    },
+    "execution": {
+      "currentStep": "completed",
+      "completedSteps": [
+        "create-token",
+        "buy",
+        "sell"
+      ],
+      "errors": [],
+      "startTime": "2025-09-05T02:09:07.860Z",
+      "endTime": "2025-09-05T02:09:13.081Z"
+    }
+  },
+  "savedAt": "2025-09-05T02:09:13.082Z"
+}
