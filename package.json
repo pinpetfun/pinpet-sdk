@@ -1,25 +1,41 @@
 {
   "name": "spin-sdk",
   "version": "0.1.0",
-  "description": "Solana Anchor 合约的 SDK",
+  "description": "SpinPet protocol SDK for Solana - A comprehensive toolkit for interacting with SpinPet smart contracts",
   "main": "dist/spin-sdk.cjs.js",
   "module": "dist/spin-sdk.esm.js",
   "browser": "dist/spin-sdk.js",
   "scripts": {
     "build": "rollup -c",
     "build:dev": "rollup -c -w",
+    "build:prod": "NODE_ENV=production rollup -c",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build:prod && npm run lint",
     "test": "mocha tests/unit/**/*.test.js",
     "test:integration": "mocha tests/integration/**/*.test.js",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "size-check": "npm run build:prod && du -sh dist/*"
   },
   "keywords": [
     "solana",
     "anchor",
     "blockchain",
-    "sdk"
+    "sdk",
+    "defi",
+    "trading",
+    "spinpet"
   ],
-  "author": "",
+  "author": "SpinPet Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/spinpet/spin-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/spinpet/spin-sdk/issues"
+  },
+  "homepage": "https://github.com/spinpet/spin-sdk#readme",
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@pump-fun/pump-sdk": "^1.5.0",
@@ -48,6 +64,7 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "README.md"
   ]
 }

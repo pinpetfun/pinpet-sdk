@@ -4,7 +4,7 @@ This is a detailed interface documentation for the SpinPetSdk class, providing d
 
 ## Table of Contents
 
-1. [SDK Initialization](#sdk-initialization)
+1. [SDK Initialization](#sdk-initialization) 
 2. [Core Configuration](#core-configuration)
 3. [Trading Module - Trading Functions](#trading-module---trading-functions)
 4. [Fast Module - Data Retrieval](#fast-module---data-retrieval)
@@ -786,9 +786,9 @@ The Chain module provides functionality to read account data directly from the S
 
 **Features:**
 - = **Direct on-chain queries**: Read data directly from blockchain without relying on third-party APIs
-- ¡ **Concurrent optimization**: Use Promise.all for concurrent account queries to improve performance
-- =Ê **Complete data**: Return comprehensive information including all related account addresses and balances
-- =á **Error handling**: Provide detailed error messages and exception handling
+- ï¿½ **Concurrent optimization**: Use Promise.all for concurrent account queries to improve performance
+- =ï¿½ **Complete data**: Return comprehensive information including all related account addresses and balances
+- =ï¿½ **Error handling**: Provide detailed error messages and exception handling
 - = **Real-time sync**: Data is synchronized with on-chain state in real-time for accuracy
 
 **Important notes:**
