@@ -3,9 +3,10 @@
  * 使用 SpinPet SDK 卖出代币并更新全局状态
  */
 
-const BotGlobal = require('../bot-global');
+const BotGlobal = require('../bot-manager');
 const SdkFactory = require('../sdk-factory');
 const anchor = require('@coral-xyz/anchor');
+const { printTransactionLogsWithBotGlobal } = require('../transaction-logger');
 
 async function sellTokens(customParams = null) {
   const startTime = Date.now();
@@ -141,6 +142,14 @@ async function sellTokens(customParams = null) {
     if (confirmation.value.err) {
       throw new Error('卖出交易失败: ' + JSON.stringify(confirmation.value.err));
     }
+    
+    // 打印交易日志
+    await printTransactionLogsWithBotGlobal({
+      connection: connection,
+      signature: signature,
+      BotGlobal: BotGlobal,
+      title: "卖出交易"
+    });
     
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(2);

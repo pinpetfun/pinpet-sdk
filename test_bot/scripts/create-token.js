@@ -4,9 +4,10 @@
  */
 
 const { Keypair, PublicKey } = require('@solana/web3.js');
-const BotGlobal = require('../bot-global');
+const BotGlobal = require('../bot-manager');
 const SdkFactory = require('../sdk-factory');
 const bs58 = require('bs58');
+const { printTransactionLogsWithBotGlobal } = require('../transaction-logger');
 
 async function createToken() {
   const startTime = Date.now();
@@ -89,6 +90,14 @@ async function createToken() {
     if (confirmation.value.err) {
       throw new Error('交易失败: ' + JSON.stringify(confirmation.value.err));
     }
+    
+    // 打印交易日志
+    await printTransactionLogsWithBotGlobal({
+      connection: connection,
+      signature: signature,
+      BotGlobal: BotGlobal,
+      title: "创建代币交易"
+    });
     
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(2);

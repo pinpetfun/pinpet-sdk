@@ -39,4 +39,4 @@ test-tools/
 tests/
 test_bot/
 
-.gitignore
+test_bot/测试文档.md

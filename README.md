@@ -1,10 +1,18 @@
-# SpinPetSdk Interface Documentation
+# SpinPet SDK
 
-This is a detailed interface documentation for the SpinPetSdk class, providing developers with a clear and comprehensive API usage guide.
+A JavaScript SDK for interacting with SpinPet protocol-related Solana Anchor smart contracts. The SDK supports both Node.js and browser environments, providing modular functionality for trading, token management, order management, and more.
+
+## Installation 
+
+```bash
+npm install spin-sdk
+```
+
+**NPM Package**: https://www.npmjs.com/package/spin-sdk
 
 ## Table of Contents
 
-1. [SDK Initialization](#sdk-initialization) 
+1. [SDK Initialization](#sdk-initialization)
 2. [Core Configuration](#core-configuration)
 3. [Trading Module - Trading Functions](#trading-module---trading-functions)
 4. [Fast Module - Data Retrieval](#fast-module---data-retrieval)
@@ -13,6 +21,7 @@ This is a detailed interface documentation for the SpinPetSdk class, providing d
 7. [Simulator Module - Trading Simulation](#simulator-module---trading-simulation)
 8. [Chain Module - On-chain Data Queries](#chain-module---on-chain-data-queries)
 9. [Utility Methods](#utility-methods)
+10. [Unified Data Interface Documentation](#unified-data-interface-documentation)
 
 ---
 
@@ -21,51 +30,48 @@ This is a detailed interface documentation for the SpinPetSdk class, providing d
 ### Constructor
 
 ```javascript
-new SpinPetSdk(connection, wallet, programId, options)
+new SpinPetSdk(connection, programId, options)
 ```
 
 **Parameters:**
 - `connection` *(Connection)*: Solana connection instance
-- `wallet` *(Wallet|Keypair)*: Wallet instance or keypair
 - `programId` *(PublicKey|string)*: Program ID
 - `options` *(Object)*: Optional configuration parameters
 
-**Options configuration:**
+**options Configuration:**
 ```javascript
 {
   fee_recipient: "4nffmKaNrex34LkJ99RLxMt2BbgXeopUi8kJnom3YWbv",           // Fee recipient account
   base_fee_recipient: "8fJpd2nteqkTEnXf4tG6d1MnP9p71KMCV4puc9vaq6kv",      // Base fee recipient account
   params_account: "DVRnPDW1MvUhRhDfE1kU6aGHoQoufBCmQNbqUH4WFgUd",          // Parameters account
-  spin_fast_api_url: "http://192.168.18.36:8080",                         // FastAPI address
+  spin_fast_api_url: "http://192.168.18.36:8080",                         // FastAPI URL
+  defaultDataSource: "fast",                                              // Default data source, "fast" or "chain"
   commitment: "confirmed",                                                 // Commitment level
   preflightCommitment: "processed",                                        // Preflight commitment level
   skipPreflight: false,                                                    // Whether to skip preflight
-  maxRetries: 3                                                           // Maximum retry attempts
+  maxRetries: 3,                                                          // Maximum retry count
+  debug_log_path: null                                                    // Debug log path (optional)
 }
 ```
 
 **Example:**
 ```javascript
 const { Connection, PublicKey } = require('@solana/web3.js');
-const anchor = require('@coral-xyz/anchor');
-const SpinPetSdk = require('spinpet-sdk');
+const { SpinPetSdk, getDefaultOptions, SPINPET_PROGRAM_ID } = require('spin-sdk');
 
 // Create connection
 const connection = new Connection('http://localhost:8899', 'confirmed');
 
-// Create wallet
-const wallet = new anchor.Wallet(keypair);
+// Get default configuration
+const options = getDefaultOptions('LOCALNET');
 
-// Initialize SDK
+// Initialize SDK (Note: wallet parameter is no longer required)
 const sdk = new SpinPetSdk(
   connection, 
-  wallet, 
-  "YourProgramId", 
+  SPINPET_PROGRAM_ID, 
   {
-    fee_recipient: "4nffmKaNrex34LkJ99RLxMt2BbgXeopUi8kJnom3YWbv",
-    base_fee_recipient: "8fJpd2nteqkTEnXf4tG6d1MnP9p71KMCV4puc9vaq6kv",
-    params_account: "DVRnPDW1MvUhRhDfE1kU6aGHoQoufBCmQNbqUH4WFgUd",
-    spin_fast_api_url: "http://localhost:8080"
+    ...options,  // Include network-specific configuration
+    defaultDataSource: 'fast'  // 'fast' or 'chain'
   }
 );
 ```
@@ -76,8 +82,34 @@ const sdk = new SpinPetSdk(
 
 ### Constant Configuration
 
-- `sdk.MAX_ORDERS_COUNT`: 20 - Maximum number of orders processed per transaction
-- `sdk.FIND_MAX_ORDERS_COUNT`: 1000 - Maximum number of orders retrieved during queries
+- `sdk.MAX_ORDERS_COUNT`: 10 - Maximum orders processed per transaction
+- `sdk.FIND_MAX_ORDERS_COUNT`: 1000 - Maximum orders fetched when querying
+- `sdk.SUGGEST_LIQ_RATIO`: 975 - Suggested liquidity ratio when insufficient, in basis points (1000=100%)
+
+### Unified Data Interface
+
+SDK provides `sdk.data` unified data interface that automatically routes to fast or chain modules based on `defaultDataSource` configuration:
+
+```javascript
+// Get orders using default data source
+const ordersData = await sdk.data.orders(mint, { type: 'down_orders' });
+
+// Temporarily specify data source
+const ordersData = await sdk.data.orders(mint, { 
+  type: 'down_orders',
+  dataSource: 'chain'  // Temporarily use chain data source
+});
+
+// Get price data
+const price = await sdk.data.price(mint);
+
+// Get user orders
+const userOrders = await sdk.data.user_orders(user, mint, {
+  page: 1,
+  limit: 200,
+  order_by: 'start_time_desc'
+});
+```
 
 ---
 
@@ -91,16 +123,16 @@ await sdk.trading.buy(params, options)
 
 **Parameters:**
 - `params.mintAccount` *(string|PublicKey)*: Token mint account address
-- `params.buyTokenAmount` *(anchor.BN)*: Amount of tokens to buy
+- `params.buyTokenAmount` *(anchor.BN)*: Amount of tokens to purchase
 - `params.maxSolAmount` *(anchor.BN)*: Maximum SOL to spend
 - `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute unit limit, default 1400000
+- `options.computeUnits` *(number)*: Compute units limit, default 1400000
 
-**Return value:**
+**Return Value:**
 ```javascript
 {
   transaction: Transaction,           // Transaction object
-  signers: [],                       // Signers array (empty, only payer signature needed)
+  signers: [],                       // Signers array (empty array, only payer signature needed)
   accounts: {                        // Related account information
     mint: PublicKey,
     curveAccount: PublicKey,
@@ -111,7 +143,7 @@ await sdk.trading.buy(params, options)
   },
   orderData: {                       // Order data information
     ordersUsed: number,              // Number of orders used
-    lpPairsCount: number,            // Number of LP pairs
+    lpPairsCount: number,            // LP pairs count
     lpPairs: Array,                  // LP pairs array
     orderAccounts: Array             // Order accounts array
   }
@@ -142,19 +174,9 @@ await sdk.trading.sell(params, options)
 - `params.sellTokenAmount` *(anchor.BN)*: Amount of tokens to sell
 - `params.minSolOutput` *(anchor.BN)*: Minimum SOL output
 - `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute unit limit, default 1400000
+- `options.computeUnits` *(number)*: Compute units limit, default 1400000
 
-**Return value:** Same as `buy()` method
-
-**Example:**
-```javascript
-const result = await sdk.trading.sell({
-  mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
-  sellTokenAmount: new anchor.BN("1000000000"),   // 1 token
-  minSolOutput: new anchor.BN("1800000000"),      // At least 1.8 SOL
-  payer: wallet.publicKey
-});
-```
+**Return Value:** Same as `buy()` method
 
 ### sdk.trading.long() - Margin Long
 
@@ -164,85 +186,19 @@ await sdk.trading.long(params, options)
 
 **Parameters:**
 - `params.mintAccount` *(string|PublicKey)*: Token mint account address
-- `params.buyTokenAmount` *(anchor.BN)*: Amount of tokens to buy
+- `params.buyTokenAmount` *(anchor.BN)*: Amount of tokens to purchase
 - `params.maxSolAmount` *(anchor.BN)*: Maximum SOL to spend
 - `params.marginSol` *(anchor.BN)*: Margin amount
 - `params.closePrice` *(anchor.BN)*: Close price
 - `params.prevOrder` *(PublicKey|null)*: Previous order
 - `params.nextOrder` *(PublicKey|null)*: Next order
 - `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute unit limit, default 1400000
-
-**Return value:**
-```javascript
-{
-  transaction: Transaction,
-  signers: [],
-  accounts: {
-    mint: PublicKey,
-    curveAccount: PublicKey,
-    poolTokenAccount: PublicKey,
-    poolSolAccount: PublicKey,
-    payer: PublicKey,
-    selfOrder: PublicKey               // Self-created order address
-  },
-  orderData: {
-    ordersUsed: number,
-    lpPairsCount: number,
-    lpPairs: Array,
-    orderAccounts: Array,
-    uniqueSeed: anchor.BN,             // Unique seed
-    prevOrder: PublicKey|null,
-    nextOrder: PublicKey|null
-  }
-}
-```
-
-**Example:**
-```javascript
-const result = await sdk.trading.long({
-  mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
-  buyTokenAmount: new anchor.BN("10000000"),      // 0.01 token
-  maxSolAmount: new anchor.BN("1100000000"),      // Max spend 1.1 SOL
-  marginSol: new anchor.BN("2200000000"),         // Margin 2.2 SOL
-  closePrice: new anchor.BN("1000000000000000"),  // Close price
-  prevOrder: null,
-  nextOrder: null,
-  payer: wallet.publicKey
-});
-```
+- `options.computeUnits` *(number)*: Compute units limit, default 1400000
 
 ### sdk.trading.short() - Margin Short
 
 ```javascript
 await sdk.trading.short(params, options)
-```
-
-**Parameters:**
-- `params.mintAccount` *(string|PublicKey)*: Token mint account address
-- `params.borrowSellTokenAmount` *(anchor.BN)*: Amount of borrowed tokens to sell
-- `params.minSolOutput` *(anchor.BN)*: Minimum SOL output
-- `params.marginSol` *(anchor.BN)*: Margin amount
-- `params.closePrice` *(anchor.BN)*: Close price
-- `params.prevOrder` *(PublicKey|null)*: Previous order
-- `params.nextOrder` *(PublicKey|null)*: Next order
-- `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute unit limit, default 1400000
-
-**Return value:** Similar to `long()` method
-
-**Example:**
-```javascript
-const result = await sdk.trading.short({
-  mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
-  borrowSellTokenAmount: new anchor.BN("1000000000"),  // Borrow and sell 1 token
-  minSolOutput: new anchor.BN("100"),                   // At least 0.0000001 SOL
-  marginSol: new anchor.BN("2200000000"),               // Margin 2.2 SOL
-  closePrice: new anchor.BN("1000000000000000"),        // Close price
-  prevOrder: null,
-  nextOrder: null,
-  payer: wallet.publicKey
-});
 ```
 
 ### sdk.trading.closeLong() - Close Long Position
@@ -251,60 +207,10 @@ const result = await sdk.trading.short({
 await sdk.trading.closeLong(params, options)
 ```
 
-**Parameters:**
-- `params.mintAccount` *(string|PublicKey)*: Token mint account address
-- `params.closeOrder` *(string|PublicKey)*: Order address to close
-- `params.lpPairs` *(Array)*: LP pairs array
-- `params.sellTokenAmount` *(anchor.BN)*: Amount of tokens to sell
-- `params.minSolOutput` *(anchor.BN)*: Minimum SOL output after selling
-- `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute unit limit, default 1400000
-
-**Example:**
-```javascript
-// First get order data
-const ordersData = await sdk.fast.orders(mint, { type: 'down_orders' });
-const lpPairs = sdk.fast.buildLpPairs(ordersData.data.orders);
-
-const result = await sdk.trading.closeLong({
-  mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
-  closeOrder: "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA",
-  lpPairs: lpPairs,
-  sellTokenAmount: new anchor.BN("1000000000"),
-  minSolOutput: new anchor.BN("100000000"),
-  payer: wallet.publicKey
-});
-```
-
 ### sdk.trading.closeShort() - Close Short Position
 
 ```javascript
 await sdk.trading.closeShort(params, options)
-```
-
-**Parameters:**
-- `params.mintAccount` *(string|PublicKey)*: Token mint account address
-- `params.closeOrder` *(string|PublicKey)*: Order address to close
-- `params.lpPairs` *(Array)*: LP pairs array
-- `params.buyTokenAmount` *(anchor.BN)*: Amount of tokens to buy
-- `params.maxSolAmount` *(anchor.BN)*: Maximum SOL to spend
-- `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute unit limit, default 1400000
-
-**Example:**
-```javascript
-// First get order data
-const ordersData = await sdk.fast.orders(mint, { type: 'up_orders' });
-const lpPairs = sdk.fast.buildLpPairs(ordersData.data.orders);
-
-const result = await sdk.trading.closeShort({
-  mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
-  closeOrder: "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA",
-  lpPairs: lpPairs,
-  buyTokenAmount: new anchor.BN("1000000000"),
-  maxSolAmount: new anchor.BN("100000000"),
-  payer: wallet.publicKey
-});
 ```
 
 ---
@@ -322,30 +228,6 @@ await sdk.fast.mints(options)
 - `options.limit` *(number)*: Items per page, default 10
 - `options.sort_by` *(string)*: Sort method, default 'slot_asc'
 
-**Return value:**
-```javascript
-{
-  "success": true,
-  "data": {
-    "mints": ["56hfrQYiyRSUZdRKDuUvsqRik8j2UDW9kCisy7BiRxmg", "4RGUZQ7PGF2JQWXKxr9hybPs1ZY3LWDb4QQ7FSHx92g9"],
-    "total": null,
-    "page": 1,
-    "limit": 10,
-    "has_next": false,
-    "has_prev": false,
-    "next_cursor": null,
-    "sort_by": "slot_asc"
-  },
-  "message": "Operation successful"
-}
-```
-
-**Example:**
-```javascript
-const result = await sdk.fast.mints({ page: 1, limit: 10 });
-const mintAddresses = result.data.mints; // Token address array
-```
-
 ### sdk.fast.mint_info() - Get Token Details
 
 ```javascript
@@ -354,51 +236,6 @@ await sdk.fast.mint_info(mint)
 
 **Parameters:**
 - `mint` *(string|Array)*: Token address or array of addresses
-
-**Return value:**
-```javascript
-{
-  "success": true,
-  "data": {
-    "details": [
-      {
-        "mint_account": "56hfrQYiyRSUZdRKDuUvsqRik8j2UDW9kCisy7BiRxmg",
-        "payer": "Hfi9FpHeqAz8qih87NccCqRQY7VWs3JH8ixqqBXRBLH5",
-        "curve_account": "4xPzWMvbGT2AMmCMcvCw3h3PA3iG6kNKixfJyZ45r2BA",
-        "pool_token_account": "7FsTN832wYsfa1fThy4sKZiMNavVRJ6gPk3SXbEwcAXH",
-        "pool_sol_account": "3j4PfGm7YNhpBLijBHgNXggvVzsDMYTJW5fNJQ6cV89N",
-        "name": "Hello",
-        "symbol": "HLO",
-        "uri": "https://example.com/hello-token.json",
-        "swap_fee": 250,
-        "borrow_fee": 300,
-        "fee_discount_flag": 2,
-        "create_timestamp": 1755667440,
-        "latest_price": "13514066072452801812769",
-        "latest_trade_time": 1755667451,
-        "total_sol_amount": 214303125000,
-        "total_margin_sol_amount": 5837102249,
-        "total_force_liquidations": 4,
-        "total_close_profit": 1605153562,
-        "created_by": "Hfi9FpHeqAz8qih87NccCqRQY7VWs3JH8ixqqBXRBLH5",
-        "last_updated_at": "2025-08-20T05:24:12.327211706Z"
-      }
-    ],
-    "total": 1
-  },
-  "message": "Operation successful"
-}
-```
-
-**Example:**
-```javascript
-// Get single token details
-const info = await sdk.fast.mint_info('56hfrQYiyRSUZdRKDuUvsqRik8j2UDW9kCisy7BiRxmg');
-const details = info.data.details[0];
-
-// Get multiple token details
-const info = await sdk.fast.mint_info(['address1', 'address2']);
-```
 
 ### sdk.fast.orders() - Get Order Data
 
@@ -412,41 +249,6 @@ await sdk.fast.orders(mint, options)
 - `options.page` *(number)*: Page number, default 1
 - `options.limit` *(number)*: Items per page, default 500
 
-**Return value:**
-```javascript
-{
-  "success": true,
-  "data": {
-    "orders": [
-      {
-        "order_type": 2,
-        "mint": "Token address",
-        "user": "User address",
-        "lock_lp_start_price": "753522984132656210522",
-        "lock_lp_end_price": "833102733432007194898",
-        "lock_lp_sol_amount": 2535405978,
-        "lock_lp_token_amount": 32000000000000,
-        "start_time": 1755964862,
-        "end_time": 1756137662,
-        "margin_sol_amount": 1909140052,
-        "borrow_amount": 32000000000000,
-        "position_asset_amount": 656690798,
-        "borrow_fee": 1200,
-        "order_pda": "59yP5tpDP6DBcyy4mge9wKKKdLmk45Th4sbd6Un9LxVN"
-      }
-    ],
-    // ... more orders
-  }
-}
-```
-
-**Example:**
-```javascript
-// Get long orders
-const ordersData = await sdk.fast.orders(mint, { type: 'down_orders' });
-const orders = ordersData.data.orders;
-```
-
 ### sdk.fast.price() - Get Token Price
 
 ```javascript
@@ -456,15 +258,8 @@ await sdk.fast.price(mint)
 **Parameters:**
 - `mint` *(string)*: Token address
 
-**Return value:**
+**Return Value:**
 - `string`: Latest price string
-
-**Example:**
-```javascript
-// Get latest token price
-const price = await sdk.fast.price('56hfrQYiyRSUZdRKDuUvsqRik8j2UDW9kCisy7BiRxmg');
-console.log('Latest price:', price); // "13514066072452801812769"
-```
 
 ### sdk.fast.user_orders() - Get User Orders
 
@@ -478,88 +273,6 @@ await sdk.fast.user_orders(user, mint, options)
 - `options.page` *(number)*: Page number, default 1
 - `options.limit` *(number)*: Items per page, default 200
 - `options.order_by` *(string)*: Sort method, default 'start_time_desc'
-
-**Example:**
-```javascript
-const userOrders = await sdk.fast.user_orders(
-  '8iGFeUkRpyRx8w5uoUMbfZepUr6BfTdPuJmqGoNBntdb',
-  '4Kq51Kt48FCwdo5CeKjRVPodH1ticHa7mZ5n5gqMEy1X',
-  { page: 1, limit: 200 }
-);
-const orders = userOrders.data.orders;
-```
-
-### sdk.fast.findPrevNext() - Find Order Previous and Next Nodes
-
-```javascript
-sdk.fast.findPrevNext(orders, findOrderPda)
-```
-
-**Parameters:**
-- `orders` *(Array)*: Orders array
-- `findOrderPda` *(string)*: Order PDA address to find
-
-**Return value:**
-```javascript
-{
-  prevOrder: Object|null,    // Previous order
-  nextOrder: Object|null     // Next order
-}
-```
-
-**Example:**
-```javascript
-const ordersData = await sdk.fast.orders(mint, { type: 'down_orders' });
-const result = sdk.fast.findPrevNext(ordersData.data.orders, 'E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA');
-
-if (result.prevOrder) {
-  console.log('Previous order:', result.prevOrder.order_pda);
-}
-```
-
-### sdk.fast.buildLpPairs() - Build LP Pairs Array
-
-```javascript
-sdk.fast.buildLpPairs(orders)
-```
-
-**Parameters:**
-- `orders` *(Array)*: Orders array
-
-**Return value:**
-```javascript
-[
-  { solAmount: anchor.BN, tokenAmount: anchor.BN },
-  { solAmount: anchor.BN, tokenAmount: anchor.BN },
-  // ... up to 20 pairs
-]
-```
-
-**Example:**
-```javascript
-const ordersData = await sdk.fast.orders(mint, { type: 'down_orders' });
-const lpPairs = sdk.fast.buildLpPairs(ordersData.data.orders);
-```
-
-### sdk.fast.buildOrderAccounts() - Build Order Accounts Array
-
-```javascript
-sdk.fast.buildOrderAccounts(orders)
-```
-
-**Parameters:**
-- `orders` *(Array)*: Orders array
-
-**Return value:**
-```javascript
-[
-  "4fvsPDNoRRacSzE3PkEuNQeTNWMaeFqGwUxCnEbR1Dzb",  // Order address
-  "G4nHBYX8EbrP8r35pk5TfpvJZfGNyLnd4qsfT7ru5vLd",  // Order address
-  // ...
-  null,  // Empty slot
-  null   // Empty slot (total 20 slots)
-]
-```
 
 ---
 
@@ -578,41 +291,6 @@ await sdk.token.create(params)
 - `params.uri` *(string)*: Metadata URI
 - `params.payer` *(PublicKey)*: Creator public key
 
-**Return value:**
-```javascript
-{
-  transaction: Transaction,
-  signers: [Keypair],           // mint keypair needs to be a signer
-  accounts: {
-    mint: PublicKey,
-    curveAccount: PublicKey,
-    poolTokenAccount: PublicKey,
-    poolSolAccount: PublicKey,
-    payer: PublicKey
-  }
-}
-```
-
-**Example:**
-```javascript
-const { Keypair } = require('@solana/web3.js');
-
-const mintKeypair = Keypair.generate();
-const result = await sdk.token.create({
-  mint: mintKeypair,
-  name: "My Token",
-  symbol: "MTK",
-  uri: "https://example.com/token-metadata.json",
-  payer: wallet.publicKey
-});
-
-// Sign and send (requires both payer and mint signatures)
-const signature = await connection.sendTransaction(
-  result.transaction, 
-  [wallet.payer, mintKeypair]
-);
-```
-
 ---
 
 ## Param Module - Parameter Management
@@ -626,41 +304,10 @@ await sdk.param.createParams(params)
 **Parameters:**
 - `params.partner` *(PublicKey)*: Partner public key
 
-**Return value:**
-```javascript
-{
-  transaction: Transaction,
-  signers: [],                  // No additional signers needed
-  accounts: {
-    partner: PublicKey,
-    adminAccount: PublicKey,
-    paramsAccount: PublicKey
-  }
-}
-```
-
-**Example:**
-```javascript
-const result = await sdk.param.createParams({
-  partner: partnerPublicKey
-});
-```
-
 ### sdk.param.getParams() - Get Partner Parameters
 
 ```javascript
 await sdk.param.getParams(partner)
-```
-
-**Parameters:**
-- `partner` *(PublicKey)*: Partner public key
-
-**Return value:**
-```javascript
-{
-  address: PublicKey,           // Parameter account address
-  data: Object                  // Parameter data
-}
 ```
 
 ### sdk.param.getAdmin() - Get Admin Account
@@ -669,136 +316,84 @@ await sdk.param.getParams(partner)
 await sdk.param.getAdmin()
 ```
 
-**Return value:**
-```javascript
-{
-  address: PublicKey,           // Admin account address
-  data: Object                  // Admin data
-}
-```
-
-### sdk.param.getParamsAddress() - Calculate Parameter Account Address
-
-```javascript
-sdk.param.getParamsAddress(partner)
-```
-
-**Parameters:**
-- `partner` *(PublicKey)*: Partner public key
-
-**Return value:** *(PublicKey)* - Parameter account address
-
-### sdk.param.getAdminAddress() - Calculate Admin Account Address
-
-```javascript
-sdk.param.getAdminAddress()
-```
-
-**Return value:** *(PublicKey)* - Admin account address
-
 ---
 
 ## Simulator Module - Trading Simulation
 
-### sdk.simulator.simulateBuy() - Simulate Buy Analysis
+### sdk.simulator.simulateTokenBuy() - Simulate Token Buy Transaction
+
+This function simulates a token buy transaction for a specified token amount by analyzing existing short orders (up_orders) to calculate liquidity requirements, price impact, and feasibility analysis.
 
 ```javascript
-await sdk.simulator.simulateBuy(mint, buySolAmount)
+await sdk.simulator.simulateTokenBuy(mint, buyTokenAmount, passOrder)
 ```
 
 **Parameters:**
-- `mint` *(string)*: Token address
-- `buySolAmount` *(bigint|string|number)*: SOL amount to buy (u64 format, precision 10^9)
+- `mint` *(string)*: Token mint account address
+- `buyTokenAmount` *(bigint|string|number)*: Target purchase token amount (u64 format, precision 10^6)
+- `passOrder` *(string|null)*: Optional skip order PDA address
 
-**Return value:**
+**Return Value:**
 ```javascript
 {
-  success: boolean,
-  estimatedTokenOutput: string,     // Estimated tokens to receive
-  priceImpact: string,             // Price impact percentage
-  fees: {
-    swapFee: string,               // Swap fee
-    totalFee: string               // Total fee
+  // Complete liquidity calculation result
+  liqResult: {
+    free_lp_sol_amount_sum: bigint,        // Total available free liquidity SOL amount
+    free_lp_token_amount_sum: bigint,      // Total available free liquidity token amount
+    lock_lp_sol_amount_sum: bigint,        // Total locked liquidity SOL amount
+    lock_lp_token_amount_sum: bigint,      // Total locked liquidity token amount
+    has_infinite_lp: boolean,              // Whether includes infinite liquidity
+    pass_order_id: number,                 // Skipped order index position in array
+    force_close_num: number,               // Number of orders requiring force closure
+    ideal_lp_sol_amount: bigint,           // Ideal SOL usage amount
+    real_lp_sol_amount: bigint             // Actual SOL usage amount
   },
-  // ... more analysis data
+  
+  // Transaction completion analysis
+  completion: string,                      // Purchase completion percentage
+  
+  // Price slippage analysis
+  slippage: string,                        // Price slippage percentage
+  
+  // Suggested trading parameters
+  suggestedTokenAmount: string,            // Suggested token purchase amount
+  suggestedSolAmount: string               // Suggested SOL amount needed
 }
 ```
 
-**Example:**
-```javascript
-const analysis = await sdk.simulator.simulateBuy(
-  '56hfrQYiyRSUZdRKDuUvsqRik8j2UDW9kCisy7BiRxmg',
-  '1000000000'  // 1 SOL
-);
-```
+### sdk.simulator.simulateTokenSell() - Simulate Token Sell Transaction
 
-### sdk.simulator.simulateSell() - Simulate Sell Analysis
+This function simulates a token sell transaction for a specified token amount by analyzing existing long orders (down_orders).
 
 ```javascript
-await sdk.simulator.simulateSell(mint, sellTokenAmount)
+await sdk.simulator.simulateTokenSell(mint, sellTokenAmount, passOrder)
 ```
 
-**Parameters:**
-- `mint` *(string)*: Token address
-- `sellTokenAmount` *(bigint|string|number)*: Token amount to sell (u64 format, precision 10^6)
+### sdk.simulator.simulateLongStopLoss() - Simulate Long Stop Loss Analysis
 
-**Return value:** Similar to `simulateBuy()`
-
-### sdk.simulator.simulateLongStopLoss() - Simulate Long Stop Loss
+This function simulates stop loss price calculation for long positions by analyzing existing order linked lists.
 
 ```javascript
-await sdk.simulator.simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, mintInfo, ordersData)
+await sdk.simulator.simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPrice, ordersData)
 ```
 
-**Parameters:**
-- `mint` *(string)*: Token address
-- `buyTokenAmount` *(bigint|string|number)*: Token amount to buy for long position
-- `stopLossPrice` *(bigint|string|number)*: User desired stop loss price
-- `mintInfo` *(Object|null)*: Token info, default null
-- `ordersData` *(Object|null)*: Orders data, default null
+### sdk.simulator.simulateSellStopLoss() - Simulate Short Stop Loss Analysis
 
-**Return value:**
-```javascript
-{
-  success: boolean,
-  stopLossAnalysis: {
-    canSetStopLoss: boolean,        // Whether stop loss can be set
-    recommendedPrice: string,       // Recommended stop loss price
-    riskLevel: string,              // Risk level
-    // ... more analysis data
-  }
-}
-```
-
-### sdk.simulator.simulateSellStopLoss() - Simulate Short Stop Loss
+This function simulates stop loss price calculation for short positions by analyzing existing short order linked lists.
 
 ```javascript
-await sdk.simulator.simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, mintInfo, ordersData)
+await sdk.simulator.simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPrice, ordersData)
 ```
-
-**Parameters:** Similar to `simulateLongStopLoss()`
 
 ---
 
 ## Chain Module - On-chain Data Queries
 
-The Chain module provides functionality to read account data directly from the Solana blockchain. When no auxiliary server is available, this module can be used to retrieve real-time on-chain data, including liquidity pool status and account balances.
-
-**Features:**
-- = **Direct on-chain queries**: Read data directly from blockchain without relying on third-party APIs
-- � **Concurrent optimization**: Use Promise.all for concurrent account queries to improve performance
-- =� **Complete data**: Return comprehensive information including all related account addresses and balances
-- =� **Error handling**: Provide detailed error messages and exception handling
-- = **Real-time sync**: Data is synchronized with on-chain state in real-time for accuracy
-
-**Important notes:**
-- During peak trading periods, on-chain queries may experience delays
-- It's recommended to use Fast module API interfaces for critical trading scenarios
-- Chain module is suitable for monitoring, analysis, and non-real-time trading scenarios
+Chain module provides functionality to read account data directly from the Solana blockchain. When auxiliary servers are unavailable, this module can be used to obtain real-time on-chain data including liquidity pool status, account balances, etc.
 
 ### sdk.chain.getCurveAccount() - Get Complete Liquidity Pool Data
 
-This is the core method of the Chain module, used to retrieve complete borrowing liquidity pool account data for a specified token.
+This is the core method of the Chain module, used to get complete lending liquidity pool account data for a specified token.
 
 ```javascript
 await sdk.chain.getCurveAccount(mint)
@@ -807,140 +402,44 @@ await sdk.chain.getCurveAccount(mint)
 **Parameters:**
 - `mint` *(string|PublicKey)*: Token mint account address
 
-**Return value:**
+**Return Value:**
 ```javascript
 {
   // Core Reserve Data
-  lpTokenReserve: bigint,              // LP Token reserves, total reserves of liquidity provider tokens
-  lpSolReserve: bigint,                // LP SOL reserves, SOL reserves in the liquidity pool
-  price: bigint,                       // Current token price, calculated based on AMM algorithm
-  borrowTokenReserve: bigint,          // Borrowable Token reserves, borrowable token reserves
-  borrowSolReserve: bigint,            // Borrowable SOL reserves, borrowable SOL reserves
+  lpTokenReserve: bigint,              // LP Token reserve amount
+  lpSolReserve: bigint,                // LP SOL reserve amount
+  price: bigint,                       // Current token price
+  borrowTokenReserve: bigint,          // Borrow Token reserve amount
+  borrowSolReserve: bigint,            // Borrow SOL reserve amount
 
   // Fee and Parameter Configuration
-  swapFee: number,                     // Swap fee rate, expressed in basis points (e.g. 100 = 1%)
-  borrowFee: number,                   // Borrow fee rate, expressed in basis points
-  feeDiscountFlag: boolean,            // Fee discount flag, whether fee discounts are enabled
-  feeSplit: number,                    // Fee split ratio, determines how fees are distributed
-  borrowDuration: number,              // Borrow duration, in seconds
+  swapFee: number,                     // Swap fee rate in basis points
+  borrowFee: number,                   // Borrow fee rate in basis points
+  feeDiscountFlag: boolean,            // Fee discount flag
+  feeSplit: number,                    // Fee split ratio
+  borrowDuration: number,              // Borrow duration in seconds
   bump: number,                        // curve_account PDA bump seed
 
   // Account Addresses
-  baseFeeRecipient: string,            // Base fee recipient address, receives base transaction fees
-  feeRecipient: string,                // Fee recipient address, receives additional fee income
+  baseFeeRecipient: string,            // Base fee recipient address
+  feeRecipient: string,                // Fee recipient address
   mint: string,                        // Token mint account address
-  upHead: string|null,                 // Up order linked list head account address, null if none
-  downHead: string|null,               // Down order linked list head account address, null if none
-  poolTokenAccount: string,            // Pool token account address, stores tokens in the liquidity pool
-  poolSolAccount: string,              // Pool SOL account address, stores native SOL in the liquidity pool
+  upHead: string|null,                 // Up orders linked list head
+  downHead: string|null,               // Down orders linked list head
+  poolTokenAccount: string,            // Pool token account address
+  poolSolAccount: string,              // Pool SOL account address
 
   // Balance Information
-  baseFeeRecipientBalance: number,     // SOL balance of base fee recipient address (lamports)
-  feeRecipientBalance: number,         // SOL balance of fee recipient address (lamports)
-  poolTokenBalance: bigint,            // Token balance of pool token account
-  poolSolBalance: number,              // SOL balance of pool SOL account (lamports)
+  baseFeeRecipientBalance: number,     // Base fee recipient SOL balance
+  feeRecipientBalance: number,         // Fee recipient SOL balance
+  poolTokenBalance: bigint,            // Pool token account token balance
+  poolSolBalance: number,              // Pool SOL account SOL balance
 
   // Metadata
   _metadata: {
-    accountAddress: string,            // Complete address of curve_account
+    accountAddress: string,            // curve_account complete address
     mintAddress: string                // Input token mint address
   }
-}
-```
-
-**Complete example:**
-```javascript
-try {
-  // Get complete liquidity pool data
-  const curveData = await sdk.chain.getCurveAccount('3YggGtxXEGBbjK1WLj2Z79doZC2gkCWXag1ag8BD4cYY');
-  
-  // === Display core reserve information ===
-  console.log('=== Core Reserve Data ===');
-  console.log('LP Token reserves:', curveData.lpTokenReserve.toString());
-  console.log('LP SOL reserves:', (Number(curveData.lpSolReserve) / 1e9).toFixed(4), 'SOL');
-  console.log('Current price:', curveData.price.toString());
-  console.log('Borrow Token reserves:', curveData.borrowTokenReserve.toString());
-  console.log('Borrow SOL reserves:', (Number(curveData.borrowSolReserve) / 1e9).toFixed(4), 'SOL');
-  
-  // === Display fee configuration ===
-  console.log('=== Fee Configuration ===');
-  console.log('Swap fee rate:', (curveData.swapFee / 100).toFixed(2), '%');
-  console.log('Borrow fee rate:', (curveData.borrowFee / 100).toFixed(2), '%');
-  console.log('Fee discount:', curveData.feeDiscountFlag ? 'Enabled' : 'Disabled');
-  console.log('Fee split ratio:', curveData.feeSplit);
-  console.log('Borrow duration:', curveData.borrowDuration, 'seconds');
-  
-  // === Display account addresses ===
-  console.log('=== Account Addresses ===');
-  console.log('Base fee recipient address:', curveData.baseFeeRecipient);
-  console.log('Fee recipient address:', curveData.feeRecipient);
-  console.log('Pool token account:', curveData.poolTokenAccount);
-  console.log('Pool SOL account:', curveData.poolSolAccount);
-  
-  // === Display balance information ===
-  console.log('=== Balance Information ===');
-  console.log('Base fee recipient balance:', (curveData.baseFeeRecipientBalance / 1e9).toFixed(6), 'SOL');
-  console.log('Fee recipient balance:', (curveData.feeRecipientBalance / 1e9).toFixed(6), 'SOL');
-  console.log('Pool token balance:', curveData.poolTokenBalance.toString());
-  console.log('Pool SOL balance:', (curveData.poolSolBalance / 1e9).toFixed(6), 'SOL');
-  
-  // === Display linked list head information ===
-  console.log('=== Order Linked Lists ===');
-  console.log('Up order head:', curveData.upHead || 'Empty');
-  console.log('Down order head:', curveData.downHead || 'Empty');
-  
-} catch (error) {
-  console.error('Failed to get curve account:', error.message);
-}
-```
-
-**Liquidity pool monitoring example:**
-```javascript
-// Utility function to monitor liquidity pool health
-async function monitorPoolHealth(mintAddress) {
-  try {
-    const data = await sdk.chain.getCurveAccount(mintAddress);
-    
-    // Calculate pool utilization
-    const tokenUtilization = Number(data.lpTokenReserve - data.poolTokenBalance) / Number(data.lpTokenReserve);
-    const solUtilization = Number(data.lpSolReserve - BigInt(data.poolSolBalance)) / Number(data.lpSolReserve);
-    
-    // Calculate total fee earnings
-    const totalFeeBalance = data.baseFeeRecipientBalance + data.feeRecipientBalance;
-    
-    // Assess liquidity status
-    const liquidityStatus = {
-      tokenUtilization: (tokenUtilization * 100).toFixed(2) + '%',
-      solUtilization: (solUtilization * 100).toFixed(2) + '%',
-      totalFeeEarnings: (totalFeeBalance / 1e9).toFixed(6) + ' SOL',
-      currentPrice: data.price.toString(),
-      isHealthy: tokenUtilization < 0.9 && solUtilization < 0.9,  // Healthy if utilization < 90%
-      hasOrders: Boolean(data.upHead || data.downHead)
-    };
-    
-    console.log('Liquidity pool health status:', liquidityStatus);
-    
-    return liquidityStatus;
-    
-  } catch (error) {
-    console.error('Monitoring failed:', error.message);
-    return null;
-  }
-}
-
-// Batch monitor multiple token liquidity pools
-async function batchMonitorPools(mintAddresses) {
-  const results = await Promise.allSettled(
-    mintAddresses.map(mint => monitorPoolHealth(mint))
-  );
-  
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled' && result.value) {
-      console.log(`Token ${mintAddresses[index]}:`, result.value);
-    } else {
-      console.error(`Token ${mintAddresses[index]} monitoring failed`);
-    }
-  });
 }
 ```
 
@@ -950,83 +449,138 @@ async function batchMonitorPools(mintAddresses) {
 await sdk.chain.getCurveAccountBatch(mints)
 ```
 
-**Parameters:**
-- `mints` *(Array<string|PublicKey>)*: Array of token addresses
-
-**Return value:**
-```javascript
-{
-  success: Array,                      // Array of successfully retrieved data
-  errors: Array,                       // Array of error information for failures
-  total: number,                       // Total count
-  successCount: number,                // Success count
-  errorCount: number                   // Error count
-}
-```
-
-**Example:**
-```javascript
-const curveDataList = await sdk.chain.getCurveAccountBatch([
-  '3YggGtxXEGBbjK1WLj2Z79doZC2gkCWXag1ag8BD4cYY',
-  'HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7'
-]);
-
-console.log('Successfully retrieved:', curveDataList.successCount);
-console.log('Failed count:', curveDataList.errorCount);
-curveDataList.success.forEach(data => {
-  console.log('Token:', data.mint, 'Price:', data.price.toString());
-});
-```
-
 ### sdk.chain.getCurveAccountAddress() - Calculate Liquidity Pool Address
 
 ```javascript
 sdk.chain.getCurveAccountAddress(mint)
 ```
 
-**Parameters:**
-- `mint` *(string|PublicKey)*: Token mint account address
-
-**Return value:** *(PublicKey)* - curve_account PDA address
-
-**Example:**
-```javascript
-const curveAddress = sdk.chain.getCurveAccountAddress('3YggGtxXEGBbjK1WLj2Z79doZC2gkCWXag1ag8BD4cYY');
-console.log('Curve Account Address:', curveAddress.toString());
-```
-
-**Chain Module Use Cases:**
-
-1. **Real-time monitoring**: Monitor liquidity pool status, balance changes, fee earnings
-2. **Data analysis**: Analyze price trends, utilization rates, trading activity
-3. **Risk management**: Check liquidity health status, identify abnormal situations
-4. **Development debugging**: Verify contract state and data correctness during development
-5. **Offline analysis**: Retrieve historical data for subsequent analysis and reporting
-
-**Performance optimization suggestions:**
-
-- Use batch query methods to reduce network requests
-- Consider using Fast module APIs for high-frequency query scenarios
-- Set reasonable query intervals to avoid overly frequent on-chain queries
-- Use error retry mechanisms to handle network fluctuations
-
 ---
 
 ## Utility Methods
 
+### SDK Built-in Utility Methods
+
+SDK provides convenient utility methods that can be called directly through SDK instance:
+
+#### sdk.buildLpPairs() - Build LP Pairs Array
+
+```javascript
+sdk.buildLpPairs(orders, direction, price)
+```
+
+#### sdk.buildOrderAccounts() - Build Order Accounts Array
+
+```javascript
+sdk.buildOrderAccounts(orders)
+```
+
+#### sdk.findPrevNext() - Find Previous and Next Order Nodes
+
+```javascript
+sdk.findPrevNext(orders, findOrderPda)
+```
+
+#### sdk.findOrderIndex() - Get Order Position in Array
+
+```javascript
+sdk.findOrderIndex(orders, targetOrderPda)
+```
+
 ### Network Configuration
 
 ```javascript
-const { getDefaultOptions } = require('spinpet-sdk/src/utils/constants');
+const { getDefaultOptions } = require('spin-sdk');
 
 // Get default configuration
 const options = getDefaultOptions('MAINNET');  // 'MAINNET' | 'TESTNET' | 'LOCALNET'
 ```
 
-**Available networks:**
+**Available Networks:**
 - `MAINNET`: Mainnet configuration
 - `TESTNET`: Testnet configuration  
 - `LOCALNET`: Local network configuration
+
+---
+
+## Unified Data Interface Documentation
+
+### Data Source Configuration
+
+SDK supports two data sources:
+
+1. **fast** - API data source (default): Fast data retrieval through FastAPI server, fast but requires API service dependency
+2. **chain** - On-chain data source: Direct blockchain data reading, more reliable but may have delays
+
+### Configuration Methods
+
+```javascript
+// Global configuration of default data source
+const sdk = new SpinPetSdk(connection, programId, {
+  ...options,
+  defaultDataSource: 'fast'  // or 'chain'
+});
+
+// Use default data source
+const ordersData = await sdk.data.orders(mint, { type: 'down_orders' });
+
+// Temporarily specify data source
+const ordersData = await sdk.data.orders(mint, { 
+  type: 'down_orders',
+  dataSource: 'chain'  // Temporarily use chain data source
+});
+```
+
+### Core Unified Interfaces
+
+#### sdk.data.orders() - Get Order Data (Unified Interface)
+
+```javascript
+await sdk.data.orders(mint, options)
+```
+
+**Parameters:**
+- `mint` *(string)*: Token mint account address
+- `options` *(Object)*: Query options
+
+**options Parameters:**
+```javascript
+{
+  type: "down_orders" | "up_orders",    // Required: Order type
+                                        // "down_orders" = Long orders (buy low)
+                                        // "up_orders" = Short orders (sell high)
+  
+  page: number,                         // Optional: Page number, default 1
+  limit: number,                        // Optional: Items per page, default 500
+  dataSource: "fast" | "chain"          // Optional: Temporarily specify data source
+}
+```
+
+#### sdk.data.price() - Get Price Data (Unified Interface)
+
+```javascript
+await sdk.data.price(mint, options)
+```
+
+**Parameters:**
+- `mint` *(string)*: Token mint account address
+- `options` *(Object, optional)*: Query options
+
+**Return Value:**
+- **Type**: `string`
+- **Format**: u128 price string
+- **Example**: `"13514066072452801812769"`
+
+#### sdk.data.user_orders() - Get User Orders (Unified Interface)
+
+```javascript
+await sdk.data.user_orders(user, mint, options)
+```
+
+**Parameters:**
+- `user` *(string)*: User wallet address
+- `mint` *(string)*: Token mint account address
+- `options` *(Object, optional)*: Query options
 
 ---
 
@@ -1035,21 +589,22 @@ const options = getDefaultOptions('MAINNET');  // 'MAINNET' | 'TESTNET' | 'LOCAL
 ```javascript
 const { Connection, PublicKey } = require('@solana/web3.js');
 const anchor = require('@coral-xyz/anchor');
-const SpinPetSdk = require('spinpet-sdk');
-const { getDefaultOptions } = require('spinpet-sdk/src/utils/constants');
+const { SpinPetSdk, getDefaultOptions, SPINPET_PROGRAM_ID } = require('spin-sdk');
 
 async function example() {
-  // 1. Create connection and wallet
+  // 1. Create connection
   const connection = new Connection('http://localhost:8899', 'confirmed');
-  const wallet = new anchor.Wallet(keypair);
   
   // 2. Get default configuration
   const options = getDefaultOptions('LOCALNET');
   
-  // 3. Initialize SDK
-  const sdk = new SpinPetSdk(connection, wallet, programId, options);
+  // 3. Initialize SDK (Note: wallet parameter removed)
+  const sdk = new SpinPetSdk(connection, SPINPET_PROGRAM_ID, {
+    ...options,
+    defaultDataSource: 'fast'
+  });
   
-  // 4. Use various functions
+  // 4. Use various features
   
   // Get token list
   const mints = await sdk.fast.mints();
@@ -1059,23 +614,27 @@ async function example() {
   const mintInfo = await sdk.fast.mint_info(mints.data.mints[0]);
   console.log('Token details:', mintInfo.data.details[0]);
   
+  // Use unified data interface to get orders and price
+  const ordersData = await sdk.data.orders(mints.data.mints[0], { type: 'down_orders' });
+  const price = await sdk.data.price(mints.data.mints[0]);
+  
   // Simulate buy
-  const buyAnalysis = await sdk.simulator.simulateBuy(
+  const buyAnalysis = await sdk.simulator.simulateTokenBuy(
     mints.data.mints[0], 
-    '1000000000'  // 1 SOL
+    '1000000000'  // 1 token
   );
   console.log('Buy analysis:', buyAnalysis);
   
-  // Execute buy transaction
+  // Execute buy transaction (needs to provide payer parameter)
   const buyResult = await sdk.trading.buy({
     mintAccount: mints.data.mints[0],
     buyTokenAmount: new anchor.BN("1000000000"),
     maxSolAmount: new anchor.BN("2000000000"),
-    payer: wallet.publicKey
+    payer: yourWalletPublicKey  // Need to provide payer public key
   });
   
-  // Sign and send transaction
-  const signature = await connection.sendTransaction(buyResult.transaction, [wallet.payer]);
+  // Sign and send transaction (needs external wallet signature)
+  const signature = await connection.sendTransaction(buyResult.transaction, [yourWalletKeypair]);
   console.log('Transaction signature:', signature);
 }
 ```
@@ -1084,12 +643,32 @@ async function example() {
 
 ## Important Notes
 
-1. **Numerical precision**: All amount-related parameters need to use `anchor.BN` type. Note that SOL precision is 10^9, token precision is usually 10^6 or 10^9.
+1. **SDK Initialization**: Starting from the new version, the SDK constructor no longer requires the `wallet` parameter. The `payer` parameter needs to be provided in each method during transactions.
 
-2. **Transaction signing**: The `transaction` object returned by SDK needs to be signed and sent by the user. SDK does not automatically execute transactions.
+2. **Numerical Precision**: All amount-related parameters need to use `anchor.BN` type. Note that SOL precision is 10^9, token precision is usually 10^6 or 10^9.
 
-3. **Order queries**: Before executing close operations, you need to first get order data through `sdk.fast.orders()` and process it with utility methods.
+3. **Transaction Signing**: The `transaction` object returned by SDK needs to be signed and sent by users themselves. SDK does not automatically execute transactions. Supports various wallet adapters.
 
-4. **Network configuration**: Different network environments require corresponding configuration parameters. It's recommended to use `getDefaultOptions()` to get them.
+4. **Data Source Selection**: Global data source can be configured through `defaultDataSource`, or temporarily specified through `dataSource` parameter in specific methods.
 
-5. **Error handling**: All async methods may throw exceptions. It's recommended to use try-catch for error handling.
+5. **Order Queries**: Before executing close operations, order data needs to be obtained first through `sdk.data.orders()` or corresponding modules, and processed using utility methods.
+
+6. **Network Configuration**: Different network environments require corresponding configuration parameters. It's recommended to use `getDefaultOptions()` to get them.
+
+7. **Error Handling**: All async methods may throw exceptions. It's recommended to use try-catch for error handling.
+
+8. **Debug Features**: Debug logging can be enabled through `debug_log_path` configuration for easier problem tracking during development.
+
+---
+
+## License
+
+MIT
+
+## Contributing
+
+Please refer to the contributing guidelines in the repository.
+
+## Support
+
+For issues and questions, please visit the [GitHub repository](https://github.com/your-repo/spin-sdk).

@@ -7,31 +7,31 @@ Decimal.set({ precision: 28 });
  * Precision factor used for SOL calculations (10^9)
  * @type {bigint}
  */
-const SOL_PRECISION_FACTOR = 1000000000n;
+const SOL_PRECISION_FACTOR = 1_000_000_000n;
 
 /**
  * Precision factor used for Token calculations (10^6)
  * @type {bigint}
  */
-const TOKEN_PRECISION_FACTOR = 1000000n;
+const TOKEN_PRECISION_FACTOR = 1_000_000n;
 
 /**
  * Precision factor used for price calculations (10^28)
  * @type {bigint}
  */
-const PRICE_PRECISION_FACTOR = 10000000000000000000000000000n;
+const PRICE_PRECISION_FACTOR = 10_000_000_000_000_000_000_000_000_000n;
 
 /**
  * Denominator used for fee calculations (10^5)
  * @type {bigint}
  */
-const FEE_DENOMINATOR = 100000n;
+const FEE_DENOMINATOR = 100_000n;
 
 /**
  * Maximum fee rate (10%)
  * @type {bigint}
  */
-const MAX_FEE_RATE = 10000n;
+const MAX_FEE_RATE = 10_000n;
 
 
 
@@ -688,7 +688,7 @@ class CurveAMM {
         // Calculate token reserves for ending state
         const endTokenReserve = startTokenReserve.sub(tokenOutputDec);
 
-        console.log('  结束token储备 = 起始token储备 - token输出量:', endTokenReserve.toString());
+        //console.log('buyFromPriceWithTokenOutput  结束token储备 = 起始token储备 - token输出量:', endTokenReserve.toString());
 
         // Check if token reserves are sufficient
         if (endTokenReserve.lte(0)) {

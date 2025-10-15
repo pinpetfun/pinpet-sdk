@@ -1,6 +1,11 @@
-const { PublicKey, Transaction, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } = require('@solana/web3.js');
+const { ComputeBudgetProgram, PublicKey, Transaction, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } = require('@solana/web3.js');
 const { TOKEN_PROGRAM_ID } = require('@solana/spl-token');
 const anchor = require('@coral-xyz/anchor');
+// 统一使用 buffer 包，所有平台一致
+const { Buffer } = require('buffer');
+
+// Metaplex Token Metadata 程序ID
+const METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
 /**
  * Token Module
@@ -63,16 +68,32 @@ class TokenModule {
       this.sdk.programId
     );
 
+    // Calculate Metaplex metadata account address
+    const [metadataAccount] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("metadata"),
+        METADATA_PROGRAM_ID.toBuffer(),
+        mint.publicKey.toBuffer(),
+      ],
+      METADATA_PROGRAM_ID
+    );
+
     console.log('Calculated account addresses:');
     console.log('  Borrowing liquidity pool account:', curveAccount.toString());
     console.log('  Liquidity pool token account:', poolTokenAccount.toString());
     console.log('  Liquidity pool SOL account:', poolSolAccount.toString());
+    console.log('  Metadata account:', metadataAccount.toString());
     console.log('  Params account:', this.sdk.paramsAccount?.toString() || 'Not set');
 
     // Validate required configuration
     if (!this.sdk.paramsAccount) {
       throw new Error('SDK paramsAccount not configured, please provide params_account configuration during initialization');
     }
+
+    // Create compute budget instruction
+    const modifyComputeUnits = ComputeBudgetProgram.setComputeUnitLimit({
+      units: 400000
+    });
 
     // Create transaction instructions
     const createIx = await this.sdk.program.methods
@@ -83,6 +104,8 @@ class TokenModule {
         curveAccount: curveAccount,
         poolTokenAccount: poolTokenAccount,
         poolSolAccount: poolSolAccount,
+        metadata: metadataAccount,
+        metadataProgram: METADATA_PROGRAM_ID,
         params: this.sdk.paramsAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
@@ -92,6 +115,7 @@ class TokenModule {
 
     // Create transaction and add instructions
     const transaction = new Transaction();
+    transaction.add(modifyComputeUnits);
     transaction.add(createIx);
     
     console.log('Token creation transaction built, signers required:', [payer.toString(), mint.publicKey.toString()]);
@@ -104,6 +128,7 @@ class TokenModule {
         curveAccount,
         poolTokenAccount,
         poolSolAccount,
+        metadataAccount,
         payer
       }
     };

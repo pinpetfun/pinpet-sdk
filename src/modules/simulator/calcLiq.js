@@ -98,6 +98,7 @@ function calcLiqTokenBuy(price, buyTokenAmount, orders, onceMaxOrder, passOrder 
 
 
 
+
   let buyTokenAmountBigInt;
   try {
     buyTokenAmountBigInt = BigInt(buyTokenAmount);
@@ -105,17 +106,30 @@ function calcLiqTokenBuy(price, buyTokenAmount, orders, onceMaxOrder, passOrder 
     throw new Error(`价格转换错误：无法将 buyTokenAmount 转换为 BigInt Price conversion error: Cannot convert buyTokenAmount to BigInt - ${error.message}`);
   }
 
+  // 声明用于跟踪前一次自由流动性总量的变量
+  let prev_free_lp_sol_amount_sum;
+
   //result.ideal_lp_token_amount_sum = buyTokenAmountBigInt;
 
   try {
     const priceBigInt = BigInt(price);
-    [_, result.ideal_lp_sol_amount] = CurveAMM.buyFromPriceWithTokenOutput(priceBigInt, buyTokenAmountBigInt);
-    //console.log(`理想计算: 当前价格=${priceBigInt}, 目标代币=${buyTokenAmountBigInt}, 理想SOL=${result.ideal_lp_sol_amount}`);
+    [, result.ideal_lp_sol_amount] = CurveAMM.buyFromPriceWithTokenOutput(priceBigInt, buyTokenAmountBigInt);
+    // console.log(`理想计算: 当前价格=${priceBigInt}, 目标代币=${buyTokenAmountBigInt}, 理想SOL=${result.ideal_lp_sol_amount}`);
   } catch (error) {
-    //console.log(`理想计算失败: 当前价格=${price}, 目标代币=${buyTokenAmountBigInt}`);
-    console.log('错误详情:', error);
-    throw new Error(`流动性计算错误：理想流动性计算失败 Liquidity calculation error: Ideal liquidity calculation failed - ${error.message}`);
+    throw new Error(`buy流动性计算错误：理想流动性计算失败 Liquidity calculation error: Ideal liquidity calculation failed - ${error.message}`);
   }
+
+
+  // orders 长度为0 时要单独计算
+  if (orders.length === 0) {
+    [result.free_lp_sol_amount_sum, result.free_lp_token_amount_sum] = CurveAMM.buyFromPriceToPrice(BigInt(price), CurveAMM.MAX_U128_PRICE);
+    result.has_infinite_lp = true;
+    result.real_lp_sol_amount = result.ideal_lp_sol_amount
+    return result
+  }
+
+
+
 
   // 选择较小值进行遍历
   const loopCount = Math.min(orders.length, onceMaxOrder);
@@ -161,10 +175,10 @@ function calcLiqTokenBuy(price, buyTokenAmount, orders, onceMaxOrder, passOrder 
           const [solAmount, tokenAmount] = gapLiquidity;
 
           try {
-            prve_free_lp_sol_amount_sum = result.free_lp_sol_amount_sum; // 上次的值
+            prev_free_lp_sol_amount_sum = result.free_lp_sol_amount_sum; // 上次的值
             result.free_lp_sol_amount_sum += BigInt(solAmount);
             result.free_lp_token_amount_sum += BigInt(tokenAmount);
-            //console.log(`间隙[${i}]: ${startPrice}→${endPrice}, 间隙SOL=${solAmount}, 间隙Token=${tokenAmount}, 累计自由Token=${result.free_lp_token_amount_sum}`);
+            // console.log(`间隙[${i}]: ${startPrice}→${endPrice}, 间隙SOL=${solAmount}, 间隙Token=${tokenAmount}, 累计自由Token=${result.free_lp_token_amount_sum}`);
           } catch (error) {
             throw new Error(`流动性计算错误：无法转换间隙流动性数值 Liquidity calculation error: Cannot convert gap liquidity values - ${error.message}`);
           }
@@ -177,14 +191,14 @@ function calcLiqTokenBuy(price, buyTokenAmount, orders, onceMaxOrder, passOrder 
               // 计算最后精确需要买多少token
               try {
                 const actualBuyAmount = buyTokenAmountBigInt - (result.free_lp_token_amount_sum - BigInt(tokenAmount));
-                //console.log("actualBuyAmount",actualBuyAmount)
-                const [_, preciseSol] = CurveAMM.buyFromPriceWithTokenOutput(startPrice, actualBuyAmount)
-                result.real_lp_sol_amount = prve_free_lp_sol_amount_sum + BigInt(preciseSol);
+                // console.log("actualBuyAmount",actualBuyAmount)
+                const [, preciseSol] = CurveAMM.buyFromPriceWithTokenOutput(startPrice, actualBuyAmount)
+                result.real_lp_sol_amount = prev_free_lp_sol_amount_sum + BigInt(preciseSol);
 
-                //console.log(`实际计算[${i}]: 自由流动性已足够, actualBuyAmount=${actualBuyAmount}, preciseSol=${preciseSol}, 实际SOL=${result.real_lp_sol_amount}`);
+                // console.log(`实际计算[${i}]: 自由流动性已足够, actualBuyAmount=${actualBuyAmount}, preciseSol=${preciseSol}, 实际SOL=${result.real_lp_sol_amount}`);
                 result.force_close_num = counti; // 强平订单数量
               } catch (error) {
-                console.log('错误详情:', error);
+                // console.log('错误详情:', error);
                 throw new Error(`流动性计算错误：精确SOL计算失败 Liquidity calculation error: Precise SOL calculation failed - ${error.message}`);
               }
             }
@@ -233,9 +247,9 @@ function calcLiqTokenBuy(price, buyTokenAmount, orders, onceMaxOrder, passOrder 
               // 从当前价格开始计算需要多少SOL来买到精确的token数量
               const targetPrice = i === 0 ? BigInt(price) : BigInt(orders[i - 1].lock_lp_end_price);
               const actualBuyAmount = buyTokenAmountBigInt - (result.free_lp_token_amount_sum - BigInt(order.lock_lp_token_amount));
-              const [_, preciseSol] = CurveAMM.buyFromPriceWithTokenOutput(targetPrice, actualBuyAmount);
+              const [, preciseSol] = CurveAMM.buyFromPriceWithTokenOutput(targetPrice, actualBuyAmount);
               result.real_lp_sol_amount = prevFreeSolSum + BigInt(preciseSol);
-              //console.log(`实际计算[${i}]: 跳过订单后足够, targetPrice=${targetPrice}, preciseSol=${preciseSol}, 实际SOL=${result.real_lp_sol_amount}`);
+              // console.log(`实际计算[${i}]: 跳过订单后足够, targetPrice=${targetPrice}, preciseSol=${preciseSol}, 实际SOL=${result.real_lp_sol_amount}`);
               result.force_close_num = counti;
             } catch (error) {
               throw new Error(`流动性计算错误：跳过订单后精确SOL计算失败 Liquidity calculation error: Precise SOL calculation failed after skipping order - ${error.message}`);
@@ -314,7 +328,7 @@ function calcLiqTokenBuy(price, buyTokenAmount, orders, onceMaxOrder, passOrder 
               // 计算最后精确需要买多少token
               try {
                 const actualBuyAmount = buyTokenAmountBigInt - (result.free_lp_token_amount_sum - BigInt(tokenAmount));
-                const [_, preciseSol] = CurveAMM.buyFromPriceWithTokenOutput(lastEndPrice, actualBuyAmount)
+                const [, preciseSol] = CurveAMM.buyFromPriceWithTokenOutput(lastEndPrice, actualBuyAmount)
                 result.real_lp_sol_amount += BigInt(preciseSol);
                 result.force_close_num = counti; // 强平订单数量
               } catch (error) {
@@ -443,14 +457,28 @@ function calcLiqTokenSell(price, sellTokenAmount, orders, onceMaxOrder, passOrde
     throw new Error(`价格转换错误：无法将 sellTokenAmount 转换为 BigInt Price conversion error: Cannot convert sellTokenAmount to BigInt - ${error.message}`);
   }
 
+  // 声明用于跟踪前一次自由流动性总量的变量
+  let prev_free_lp_sol_amount_sum;
+
   // 计算理想情况下卖出能获得的SOL数量
   try {
     const priceBigInt = BigInt(price);
-    [_, result.ideal_lp_sol_amount] = CurveAMM.sellFromPriceWithTokenInput(priceBigInt, sellTokenAmountBigInt);
-    //console.log(`理想计算: 当前价格=${priceBigInt}, 卖出代币=${sellTokenAmountBigInt}, 理想SOL=${result.ideal_lp_sol_amount}`);
+    [, result.ideal_lp_sol_amount] = CurveAMM.sellFromPriceWithTokenInput(priceBigInt, sellTokenAmountBigInt);
+    // console.log(`理想计算: 当前价格=${priceBigInt}, 卖出代币=${sellTokenAmountBigInt}, 理想SOL=${result.ideal_lp_sol_amount}`);
   } catch (error) {
-    throw new Error(`流动性计算错误：理想流动性计算失败 Liquidity calculation error: Ideal liquidity calculation failed - ${error.message}`);
+    throw new Error(`sell流动性计算错误：理想流动性计算失败 Liquidity calculation error: Ideal liquidity calculation failed - ${error.message}`);
   }
+
+  // orders 长度为0 时要单独计算
+  if (orders.length === 0) {
+    [result.free_lp_token_amount_sum, result.free_lp_sol_amount_sum] = CurveAMM.sellFromPriceToPrice(BigInt(price), CurveAMM.MIN_U128_PRICE);
+    result.has_infinite_lp = true;
+    result.real_lp_sol_amount = result.ideal_lp_sol_amount
+    return result
+  }
+
+
+
 
   // 选择较小值进行遍历
   const loopCount = Math.min(orders.length, onceMaxOrder);
@@ -458,7 +486,7 @@ function calcLiqTokenSell(price, sellTokenAmount, orders, onceMaxOrder, passOrde
   let counti = 0;
   for (let i = 0; i < loopCount; i++) {
     const order = orders[i];
-    //console.log(`处理卖出订单[${i}]: 累计自由Token=${result.free_lp_token_amount_sum}, 目标=${sellTokenAmountBigInt}, 需要=${sellTokenAmountBigInt > result.free_lp_token_amount_sum}`);
+    // console.log(`处理卖出订单[${i}]: 累计自由Token=${result.free_lp_token_amount_sum}, 目标=${sellTokenAmountBigInt}, 需要=${sellTokenAmountBigInt > result.free_lp_token_amount_sum}`);
 
     // 验证订单数据格式
     if (!order) {
@@ -496,12 +524,11 @@ function calcLiqTokenSell(price, sellTokenAmount, orders, onceMaxOrder, passOrde
         if (gapLiquidity && Array.isArray(gapLiquidity) && gapLiquidity.length === 2) {
           const [tokenAmount, solAmount] = gapLiquidity;
 
-          let prve_free_lp_sol_amount_sum;
           try {
-            prve_free_lp_sol_amount_sum = result.free_lp_sol_amount_sum; // 上次的值
+            prev_free_lp_sol_amount_sum = result.free_lp_sol_amount_sum; // 上次的值
             result.free_lp_sol_amount_sum += BigInt(solAmount);
             result.free_lp_token_amount_sum += BigInt(tokenAmount);
-            //console.log(`卖出间隙[${i}]: ${startPrice}→${endPrice}, 间隙Token=${tokenAmount}, 间隙SOL=${solAmount}, 累计自由Token=${result.free_lp_token_amount_sum}`);
+            // console.log(`卖出间隙[${i}]: ${startPrice}→${endPrice}, 间隙Token=${tokenAmount}, 间隙SOL=${solAmount}, 累计自由Token=${result.free_lp_token_amount_sum}`);
           } catch (error) {
             throw new Error(`流动性计算错误：无法转换间隙流动性数值 Liquidity calculation error: Cannot convert gap liquidity values - ${error.message}`);
           }
@@ -513,9 +540,9 @@ function calcLiqTokenSell(price, sellTokenAmount, orders, onceMaxOrder, passOrde
               // 计算精确能获得多少SOL
               try {
                 const actualSellAmount = sellTokenAmountBigInt - (result.free_lp_token_amount_sum - BigInt(tokenAmount));
-                const [_, preciseSol] = CurveAMM.sellFromPriceWithTokenInput(startPrice, actualSellAmount);
-                result.real_lp_sol_amount = prve_free_lp_sol_amount_sum + preciseSol;
-                //console.log(`卖出实际计算[${i}]: 自由流动性已足够, actualSellAmount=${actualSellAmount}, preciseSol=${preciseSol}, 实际SOL=${result.real_lp_sol_amount}`);
+                const [, preciseSol] = CurveAMM.sellFromPriceWithTokenInput(startPrice, actualSellAmount);
+                result.real_lp_sol_amount = prev_free_lp_sol_amount_sum + preciseSol;
+                // console.log(`卖出实际计算[${i}]: 自由流动性已足够, actualSellAmount=${actualSellAmount}, preciseSol=${preciseSol}, 实际SOL=${result.real_lp_sol_amount}`);
                 result.force_close_num = counti; // 强平订单数量
               } catch (error) {
                 throw new Error(`流动性计算错误：精确SOL计算失败 Liquidity calculation error: Precise SOL calculation failed - ${error.message}`);
@@ -563,7 +590,7 @@ function calcLiqTokenSell(price, sellTokenAmount, orders, onceMaxOrder, passOrde
               // 计算精确能获得多少SOL
               const targetPrice = i === 0 ? BigInt(price) : BigInt(orders[i - 1].lock_lp_end_price);
               const actualSellAmount = sellTokenAmountBigInt - (result.free_lp_token_amount_sum - BigInt(order.lock_lp_token_amount));
-              const [_, preciseSol] = CurveAMM.sellFromPriceWithTokenInput(targetPrice, actualSellAmount);
+              const [, preciseSol] = CurveAMM.sellFromPriceWithTokenInput(targetPrice, actualSellAmount);
               result.real_lp_sol_amount = prevFreeSolSum + preciseSol;
               result.force_close_num = counti;
             } catch (error) {
@@ -642,7 +669,7 @@ function calcLiqTokenSell(price, sellTokenAmount, orders, onceMaxOrder, passOrde
               // 无限流动性够卖出需求了
               try {
                 const actualSellAmount = sellTokenAmountBigInt - (result.free_lp_token_amount_sum - BigInt(tokenAmount));
-                const [_,preciseSol] = CurveAMM.sellFromPriceWithTokenInput(lastEndPrice, actualSellAmount);
+                const [, preciseSol] = CurveAMM.sellFromPriceWithTokenInput(lastEndPrice, actualSellAmount);
                 result.real_lp_sol_amount = prevFreeSolSum + preciseSol;
                 result.force_close_num = counti; // 强平订单数量
               } catch (error) {

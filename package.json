@@ -1,48 +1,45 @@
 {
   "name": "spin-sdk",
-  "version": "0.1.0",
-  "description": "SpinPet protocol SDK for Solana - A comprehensive toolkit for interacting with SpinPet smart contracts",
+  "version": "0.1.39",
+  "description": "Solana Anchor 合约的 SDK",
   "main": "dist/spin-sdk.cjs.js",
   "module": "dist/spin-sdk.esm.js",
   "browser": "dist/spin-sdk.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "browser": "./dist/spin-sdk.js",
+      "import": "./dist/spin-sdk.esm.js",
+      "require": "./dist/spin-sdk.cjs.js",
+      "default": "./dist/spin-sdk.esm.js"
+    }
+  },
+  "sideEffects": false,
   "scripts": {
+    "prebuild": "mkdir -p dist",
     "build": "rollup -c",
     "build:dev": "rollup -c -w",
-    "build:prod": "NODE_ENV=production rollup -c",
-    "clean": "rimraf dist",
-    "prepublishOnly": "npm run clean && npm run build:prod && npm run lint",
+    "build:types": "cp src/types/index.d.ts dist/index.d.ts",
     "test": "mocha tests/unit/**/*.test.js",
     "test:integration": "mocha tests/integration/**/*.test.js",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
-    "size-check": "npm run build:prod && du -sh dist/*"
+    "lint": "eslint src"
   },
   "keywords": [
     "solana",
     "anchor",
     "blockchain",
-    "sdk",
-    "defi",
-    "trading",
-    "spinpet"
+    "sdk"
   ],
-  "author": "SpinPet Team",
+  "author": "",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/spinpet/spin-sdk.git"
-  },
-  "bugs": {
-    "url": "https://github.com/spinpet/spin-sdk/issues"
-  },
-  "homepage": "https://github.com/spinpet/spin-sdk#readme",
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
-    "@pump-fun/pump-sdk": "^1.5.0",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.78.0",
     "axios": "^1.11.0",
     "bs58": "^4.0.1",
+    "buffer": "^6.0.3",
     "decimal.js": "^10.6.0",
     "isomorphic-fetch": "^3.0.0",
     "node-fetch": "^3.3.2"
@@ -54,17 +51,17 @@
     "@rollup/plugin-replace": "^5.0.5",
     "@rollup/plugin-terser": "^0.4.4",
     "eslint": "^9.0.0",
+    "rollup": "^2.79.1",
+    "rollup-plugin-polyfill-node": "^0.13.0",
     "glob": "^10.3.10",
     "mocha": "^10.2.0",
-    "rimraf": "^5.0.5",
-    "rollup": "^2.79.1"
+    "rimraf": "^5.0.5"
   },
   "engines": {
     "node": ">=14.0.0"
   },
   "files": [
     "dist",
-    "src",
-    "README.md"
+    "src"
   ]
 }

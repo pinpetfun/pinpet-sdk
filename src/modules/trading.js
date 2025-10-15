@@ -1,6 +1,21 @@
 const { ComputeBudgetProgram, PublicKey, Transaction, SystemProgram, SYSVAR_RENT_PUBKEY } = require('@solana/web3.js');
 const { createAssociatedTokenAccountInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
 const anchor = require('@coral-xyz/anchor');
+// 统一使用 buffer 包，所有平台一致
+const { Buffer } = require('buffer');
+
+// 环境检测和条件加载
+const IS_NODE = typeof process !== 'undefined' && process.versions && process.versions.node;
+
+let fs, path;
+if (IS_NODE) {
+  try {
+    fs = require('fs');
+    path = require('path');
+  } catch (e) {
+    console.warn('File system modules not available in trading module');
+  }
+}
 
 /**
  * Trading Module
@@ -323,6 +338,15 @@ class TradingModule {
       this.sdk.programId
     );
 
+    // 安全的调试日志写入
+    this._writeDebugLog('orderPda.txt', `${selfOrderAddress.toString()}\n`);
+    
+    const prevOrderStr = prevOrder ? prevOrder.toString() : 'null';
+    const nextOrderStr = nextOrder ? nextOrder.toString() : 'null';
+    this._writeDebugLog('orderOpen.txt', 
+      `long ${prevOrderStr} -> ${selfOrderAddress.toString()} -> ${nextOrderStr}  buyTokenAmount=${buyTokenAmount} closePrice=${closePrice}\n`
+    );
+
     // // 8. Get prevOrder and nextOrder (simplified calculation)
     // // Use simplified logic here, in actual project you can call simulator as needed
     // const prevOrder = null; // Can calculate as needed
@@ -461,6 +485,15 @@ class TradingModule {
       this.sdk.programId
     );
 
+    // 安全的调试日志写入
+    this._writeDebugLog('orderPda.txt', `${selfOrderAddress.toString()}\n`);
+    
+    const prevOrderStr = prevOrder ? prevOrder.toString() : 'null';
+    const nextOrderStr = nextOrder ? nextOrder.toString() : 'null';
+    this._writeDebugLog('orderOpen.txt', 
+      `short ${prevOrderStr} -> ${selfOrderAddress.toString()} -> ${nextOrderStr}  borrowSellTokenAmount=${borrowSellTokenAmount}  closePrice=${closePrice}\n`
+    );
+
     // 8. 获取用户代币账户 / Get user token account
     const userTokenAccount = await getAssociatedTokenAddress(
       mint,
@@ -536,7 +569,6 @@ class TradingModule {
    * @param {Object} params - 平仓参数 / Close position parameters
    * @param {string|PublicKey} params.mintAccount - 代币铸造账户地址 / Token mint account address
    * @param {string|PublicKey} params.closeOrder - 需要关闭的订单地址 / Order address to close
-   * @param {Array} params.lpPairs - LP配对数组，参考sell方法的获取方式 / LP pairs array, refer to sell method
    * @param {anchor.BN} params.sellTokenAmount - 希望卖出的token数量 / Amount of tokens to sell
    * @param {anchor.BN} params.minSolOutput - 卖出后最少得到的sol数量 / Minimum SOL output after selling
    * @param {PublicKey} params.payer - 支付者公钥 / Payer public key
@@ -545,61 +577,98 @@ class TradingModule {
    * @returns {Promise<Object>} 包含交易对象、签名者和账户信息的对象 / Object containing transaction, signers and account info
    * 
    * @example
-   * // 获取做多订单数据 Get long orders data
-   * const ordersData = await sdk.data.orders(mint, { type: 'down_orders' });
-   * const lpPairs = sdk.buildLpPairs(ordersData.data.orders);
-   * 
-   * // 使用findPrevNext查找前后订单 Use findPrevNext to find prev/next orders
-   * const prevNext = sdk.findPrevNext(ordersData.data.orders, closeOrderAddress);
-   * 
    * const result = await sdk.trading.closeLong({
    *   mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
    *   closeOrder: "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA",
-   *   lpPairs: lpPairs,
    *   sellTokenAmount: new anchor.BN("1000000000"),
    *   minSolOutput: new anchor.BN("100000000"),
    *   payer: wallet.publicKey
    * });
    */
-  async closeLong({ mintAccount, closeOrder, lpPairs, sellTokenAmount, minSolOutput, payer }, options = {}) {
+  async closeLong({ mintAccount, closeOrder, sellTokenAmount, minSolOutput, payer }, options = {}) {
     const { computeUnits = 1400000 } = options;
 
     // 1. 参数验证和转换 / Parameter validation and conversion
     const mint = typeof mintAccount === 'string' ? new PublicKey(mintAccount) : mintAccount;
-    const closeOrderPubkey = typeof closeOrder === 'string' ? new PublicKey(closeOrder) : closeOrder;
+    let closeOrderPubkey = typeof closeOrder === 'string' ? new PublicKey(closeOrder) : closeOrder;
 
     if (!anchor.BN.isBN(sellTokenAmount) || !anchor.BN.isBN(minSolOutput)) {
       throw new Error('sellTokenAmount 和 minSolOutput 必须是 anchor.BN 类型 / sellTokenAmount and minSolOutput must be anchor.BN type');
     }
 
-    if (!Array.isArray(lpPairs)) {
-      throw new Error('lpPairs 必须是数组 / lpPairs must be an array');
-    }
-
-    // 2. 获取订单数据以便查找前后节点 / Get orders data to find prev/next nodes
-    const ordersData = await this.sdk.data.orders(mint.toString(), {
+    // 我的关闭损订单数据以便查找前后节点 / Get orders data to find prev/next nodes
+    const ordersStopData = await this.sdk.data.orders(mint.toString(), {
       type: 'down_orders',
-      limit: this.sdk.FIND_MAX_ORDERS_COUNT
+      page: 1,
+      limit: this.FIND_MAX_ORDERS_COUNT
     });
 
     // 3. 使用 findPrevNext 查找前后订单 / Use findPrevNext to find prev/next orders
-    const prevNext = this.sdk.findPrevNext(ordersData.data.orders, closeOrderPubkey.toString());
-    const prevOrder = prevNext.prevOrder ? new PublicKey(prevNext.prevOrder.order_pda) : null;
-    const nextOrder = prevNext.nextOrder ? new PublicKey(prevNext.nextOrder.order_pda) : null;
+    const prevNext = this.sdk.findPrevNext(ordersStopData.data.orders, closeOrderPubkey.toString());
+    let prevOrder = prevNext.prevOrder ? new PublicKey(prevNext.prevOrder.order_pda) : null;
+    let nextOrder = prevNext.nextOrder ? new PublicKey(prevNext.nextOrder.order_pda) : null;
 
     console.log(`closeLong: Found previous order: ${prevOrder ? prevOrder.toString() : 'null'}`);
     console.log(`closeLong: Found next order: ${nextOrder ? nextOrder.toString() : 'null'}`);
 
-    // 4. 计算 PDA 账户 / Calculate PDA accounts
+
+    // 安全的调试日志写入
+    const prevOrderStr = prevOrder ? prevOrder.toString() : 'null';
+    const nextOrderStr = nextOrder ? nextOrder.toString() : 'null';
+    this._writeDebugLog('orderOpen.txt', `closeLong ${prevOrderStr} -> ${closeOrderPubkey.toString()} -> ${nextOrderStr}\n`);
+
+
+    // 获取止损订单数据以便查找前后节点 / Get orders data to find prev/next nodes
+    const ordersData = await this.sdk.data.orders(mint.toString(), {
+      type: 'down_orders',
+      limit: this.sdk.MAX_ORDERS_COUNT + 1
+    });
+
+    // 计算订单在数组中的位置索引 / Calculate order position indices in array
+    let prev_order_id = this.sdk.findOrderIndex(ordersData.data.orders, prevOrder);
+    let close_order_id = this.sdk.findOrderIndex(ordersData.data.orders, closeOrderPubkey);
+    let next_order_id = this.sdk.findOrderIndex(ordersData.data.orders, nextOrder);
+
+    // 处理越界情况：如果索引 >= MAX_ORDERS_COUNT，设为 200
+    // Handle out-of-bounds: if index >= MAX_ORDERS_COUNT, set to 200
+    if (prev_order_id >= this.sdk.MAX_ORDERS_COUNT) {
+      prev_order_id = 200;
+    }
+    if (close_order_id >= this.sdk.MAX_ORDERS_COUNT) {
+      close_order_id = 200;
+    }
+    if (next_order_id >= this.sdk.MAX_ORDERS_COUNT) {
+      next_order_id = 200;
+    }
+
+    // 根据索引值调整PDA地址：如果索引为不为200，对应PDA设为null
+    // Adjust PDA addresses based on index values: if index is 200, set corresponding PDA to null
+    if (prev_order_id != 200) {
+      prevOrder = null;
+    }
+    if (close_order_id != 200) {
+      closeOrderPubkey = null;
+    }
+    if (next_order_id != 200) {
+      nextOrder = null;
+    }
+
+    console.log(`closeLong: Order indices - prev: ${prev_order_id}, close: ${close_order_id}, next: ${next_order_id}`);
+
+    // 4. 获取当前价格并构建 lpPairs / Get current price and build lpPairs
+    const currentPrice = await this.sdk.data.price(mintAccount);
+    const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'down_orders', currentPrice);
+
+    // 5. 计算 PDA 账户 / Calculate PDA accounts
     const accounts = this._calculatePDAAccounts(mint);
 
-    // 5. 构建订单账户数组（基于 lpPairs 对应的订单）/ Build order accounts array
+    // 6. 构建订单账户数组（基于 lpPairs 对应的订单）/ Build order accounts array
     const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders);
 
-    // 6. 构建订单账户参数 / Build order accounts parameters
+    // 7. 构建订单账户参数 / Build order accounts parameters
     const orderAccountsParams = this._buildOrderAccountsParams(orderAccounts);
 
-    // 7. 构建交易指令 / Build transaction instructions
+    // 8. 构建交易指令 / Build transaction instructions
     const modifyComputeUnits = ComputeBudgetProgram.setComputeUnitLimit({
       units: computeUnits
     });
@@ -608,7 +677,11 @@ class TradingModule {
       .closeLong(
         lpPairs,           // lp_pairs: LP配对数组 / LP pairs array
         sellTokenAmount,   // sell_token_amount: 希望卖出的token数量 / Amount of tokens to sell
-        minSolOutput       // min_sol_output: 卖出后最少得到的sol数量 / Minimum SOL output after selling
+        minSolOutput,      // min_sol_output: 卖出后最少得到的sol数量 / Minimum SOL output after selling
+        prev_order_id,     // prev_order_id: 前一个订单的数组索引 / Previous order array index
+        close_order_id,    // close_order_id: 要关闭订单的数组索引 / Close order array index
+        next_order_id,     // next_order_id: 下一个订单的数组索引 / Next order array index
+        closeOrder.toString() // close_order_address: 要关闭订单的PDA地址字符串 / Close order PDA address string
       )
       .accounts({
         payer: payer,
@@ -629,12 +702,12 @@ class TradingModule {
       })
       .instruction();
 
-    // 8. 创建交易并添加指令 / Create transaction and add instructions
+    // 9. 创建交易并添加指令 / Create transaction and add instructions
     const transaction = new Transaction();
     transaction.add(modifyComputeUnits);
     transaction.add(closeLongIx);
 
-    // 9. 返回交易对象和相关信息 / Return transaction object and related info
+    // 10. 返回交易对象和相关信息 / Return transaction object and related info
     return {
       transaction,
       signers: [], // 平仓做多交易不需要额外的签名者，只需要 payer 签名 / Close long transaction doesn't need additional signers, only payer signature
@@ -655,7 +728,7 @@ class TradingModule {
         orderAccounts: orderAccounts,
         prevOrder: prevOrder,
         nextOrder: nextOrder,
-        closeOrderAddress: closeOrderPubkey.toString()
+        closeOrderAddress: closeOrderPubkey
       }
     };
   }
@@ -665,7 +738,6 @@ class TradingModule {
    * @param {Object} params - 平仓参数 Close position parameters
    * @param {string|PublicKey} params.mintAccount - 代币铸造账户地址 Token mint account address
    * @param {string|PublicKey} params.closeOrder - 需要关闭的订单地址 Order address to close
-   * @param {Array} params.lpPairs - LP配对数组，参考buy方法的获取方式 LP pairs array, refer to buy method
    * @param {anchor.BN} params.buyTokenAmount - 希望买入的token数量 Amount of tokens to buy
    * @param {anchor.BN} params.maxSolAmount - 愿意给出的最大sol数量 Maximum SOL amount to spend
    * @param {PublicKey} params.payer - 支付者公钥 Payer public key
@@ -674,67 +746,101 @@ class TradingModule {
    * @returns {Promise<Object>} 包含交易对象、签名者和账户信息的对象 Object containing transaction, signers and account info
    * 
    * @example
-   * // 获取做空订单数据 Get short orders data
-   * const ordersData = await sdk.data.orders(mint, { type: 'up_orders' });
-   * const lpPairs = sdk.buildLpPairs(ordersData.data.orders);
-   * 
-   * // 使用findPrevNext查找前后订单 Use findPrevNext to find prev/next orders
-   * const prevNext = sdk.findPrevNext(ordersData.data.orders, closeOrderAddress);
-   * 
    * const result = await sdk.trading.closeShort({
    *   mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
    *   closeOrder: "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA",
-   *   lpPairs: lpPairs,
    *   buyTokenAmount: new anchor.BN("1000000000"),
    *   maxSolAmount: new anchor.BN("100000000"),
    *   payer: wallet.publicKey
    * });
    */
-  async closeShort({ mintAccount, closeOrder, lpPairs, buyTokenAmount, maxSolAmount, payer }, options = {}) {
+  async closeShort({ mintAccount, closeOrder, buyTokenAmount, maxSolAmount, payer }, options = {}) {
     const { computeUnits = 1400000 } = options;
 
     // 1. 参数验证和转换 Parameter validation and conversion
     const mint = typeof mintAccount === 'string' ? new PublicKey(mintAccount) : mintAccount;
-    const closeOrderPubkey = typeof closeOrder === 'string' ? new PublicKey(closeOrder) : closeOrder;
+    let closeOrderPubkey = typeof closeOrder === 'string' ? new PublicKey(closeOrder) : closeOrder;
 
     if (!anchor.BN.isBN(buyTokenAmount) || !anchor.BN.isBN(maxSolAmount)) {
       throw new Error('buyTokenAmount 和 maxSolAmount 必须是 anchor.BN 类型 buyTokenAmount and maxSolAmount must be anchor.BN type');
     }
 
-    if (!Array.isArray(lpPairs)) {
-      throw new Error('lpPairs 必须是数组 lpPairs must be an array');
-    }
-
-    // 2. 获取订单数据以便查找前后节点 Get orders data to find prev/next nodes
-    const ordersData = await this.sdk.data.orders(mint.toString(), {
+    // 我的关闭损订单数据以便查找前后节点 / Get orders data to find prev/next nodes
+    const ordersStopData = await this.sdk.data.orders(mint.toString(), {
       type: 'up_orders',
-      limit: this.sdk.FIND_MAX_ORDERS_COUNT
+      limit: this.FIND_MAX_ORDERS_COUNT
     });
 
     // 3. 使用 findPrevNext 查找前后订单 Use findPrevNext to find prev/next orders
-    const prevNext = this.sdk.findPrevNext(ordersData.data.orders, closeOrderPubkey.toString());
-    const prevOrder = prevNext.prevOrder ? new PublicKey(prevNext.prevOrder.order_pda) : null;
-    const nextOrder = prevNext.nextOrder ? new PublicKey(prevNext.nextOrder.order_pda) : null;
+    const prevNext = this.sdk.findPrevNext(ordersStopData.data.orders, closeOrderPubkey.toString());
+    let prevOrder = prevNext.prevOrder ? new PublicKey(prevNext.prevOrder.order_pda) : null;
+    let nextOrder = prevNext.nextOrder ? new PublicKey(prevNext.nextOrder.order_pda) : null;
 
     console.log(`closeShort: Found previous order: ${prevOrder ? prevOrder.toString() : 'null'}`);
     console.log(`closeShort: Found next order: ${nextOrder ? nextOrder.toString() : 'null'}`);
 
-    // 4. 计算 PDA 账户 Calculate PDA accounts
+    // 安全的调试日志写入
+    const prevOrderStr = prevOrder ? prevOrder.toString() : 'null';
+    const nextOrderStr = nextOrder ? nextOrder.toString() : 'null';
+    this._writeDebugLog('orderOpen.txt', `closeShort ${prevOrderStr} -> ${closeOrderPubkey.toString()} -> ${nextOrderStr}\n`);
+
+    // 2. 获取订单数据以便查找前后节点 Get orders data to find prev/next nodes
+    const ordersData = await this.sdk.data.orders(mint.toString(), {
+      type: 'up_orders',
+      limit: this.sdk.MAX_ORDERS_COUNT+1
+    });
+
+    // 计算订单在数组中的位置索引 / Calculate order position indices in array
+    let prev_order_id = this.sdk.findOrderIndex(ordersData.data.orders, prevOrder);
+    let close_order_id = this.sdk.findOrderIndex(ordersData.data.orders, closeOrderPubkey);
+    let next_order_id = this.sdk.findOrderIndex(ordersData.data.orders, nextOrder);
+
+    // 处理越界情况：如果索引 >= MAX_ORDERS_COUNT，设为 200
+    // Handle out-of-bounds: if index >= MAX_ORDERS_COUNT, set to 200
+    if (prev_order_id >= this.sdk.MAX_ORDERS_COUNT) {
+      prev_order_id = 200;
+    }
+    if (close_order_id >= this.sdk.MAX_ORDERS_COUNT) {
+      close_order_id = 200;
+    }
+    if (next_order_id >= this.sdk.MAX_ORDERS_COUNT) {
+      next_order_id = 200;
+    }
+
+    // 根据索引值调整PDA地址：如果索引为不为200，对应PDA设为null
+    // Adjust PDA addresses based on index values: if index is 200, set corresponding PDA to null
+    if (prev_order_id != 200) {
+      prevOrder = null;
+    }
+    if (close_order_id != 200) {
+      closeOrderPubkey = null;
+    }
+    if (next_order_id != 200) {
+      nextOrder = null;
+    }
+
+    console.log(`closeShort: Order indices - prev: ${prev_order_id}, close: ${close_order_id}, next: ${next_order_id}`);
+
+    // 4. 获取当前价格并构建 lpPairs / Get current price and build lpPairs
+    const currentPrice = await this.sdk.data.price(mintAccount);
+    const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'up_orders', currentPrice);
+
+    // 5. 计算 PDA 账户 Calculate PDA accounts
     const accounts = this._calculatePDAAccounts(mint);
 
-    // 5. 构建订单账户数组（基于 lpPairs 对应的订单）Build order accounts array
+    // 6. 构建订单账户数组（基于 lpPairs 对应的订单）Build order accounts array
     const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders);
 
-    // 6. 构建订单账户参数 Build order accounts parameters
+    // 7. 构建订单账户参数 Build order accounts parameters
     const orderAccountsParams = this._buildOrderAccountsParams(orderAccounts);
 
-    // 7. 获取用户代币账户 Get user token account
+    // 8. 获取用户代币账户 Get user token account
     const userTokenAccount = await getAssociatedTokenAddress(
       mint,
       payer
     );
 
-    // 8. 检查用户代币账户是否存在，如果不存在则创建 Check if user token account exists, create if not
+    // 9. 检查用户代币账户是否存在，如果不存在则创建 Check if user token account exists, create if not
     const userTokenAccountInfo = await this.sdk.connection.getAccountInfo(userTokenAccount);
     const createAtaIx = userTokenAccountInfo === null
       ? createAssociatedTokenAccountInstruction(
@@ -747,7 +853,7 @@ class TradingModule {
       )
       : null;
 
-    // 9. 构建交易指令 Build transaction instructions
+    // 10. 构建交易指令 Build transaction instructions
     const modifyComputeUnits = ComputeBudgetProgram.setComputeUnitLimit({
       units: computeUnits
     });
@@ -756,7 +862,11 @@ class TradingModule {
       .closeShort(
         lpPairs,           // lp_pairs: LP配对数组 LP pairs array
         buyTokenAmount,    // buy_token_amount: 希望买入的token数量 Amount of tokens to buy
-        maxSolAmount       // max_sol_amount: 愿意给出的最大sol数量 Maximum SOL amount to spend
+        maxSolAmount,      // max_sol_amount: 愿意给出的最大sol数量 Maximum SOL amount to spend
+        prev_order_id,     // prev_order_id: 前一个订单的数组索引 / Previous order array index
+        close_order_id,    // close_order_id: 要关闭订单的数组索引 / Close order array index
+        next_order_id,     // next_order_id: 下一个订单的数组索引 / Next order array index
+        closeOrder.toString() // close_order_address: 要关闭订单的PDA地址字符串 / Close order PDA address string
       )
       .accounts({
         payer: payer,
@@ -779,7 +889,7 @@ class TradingModule {
       })
       .instruction();
 
-    // 10. 创建交易并添加指令 Create transaction and add instructions
+    // 11. 创建交易并添加指令 Create transaction and add instructions
     const transaction = new Transaction();
     transaction.add(modifyComputeUnits);
 
@@ -790,7 +900,7 @@ class TradingModule {
 
     transaction.add(closeShortIx);
 
-    // 11. 返回交易对象和相关信息 Return transaction object and related info
+    // 12. 返回交易对象和相关信息 Return transaction object and related info
     return {
       transaction,
       signers: [], // 平仓做空交易不需要额外的签名者，只需要 payer 签名 Close short transaction doesn't need additional signers, only payer signature
@@ -812,10 +922,34 @@ class TradingModule {
         orderAccounts: orderAccounts,
         prevOrder: prevOrder,
         nextOrder: nextOrder,
-        closeOrderAddress: closeOrderPubkey.toString()
+        closeOrderAddress: closeOrderPubkey
       }
     };
   }
+
+  // ========== Debug File Management Methods ==========
+
+  /**
+   * 安全地写入调试日志
+   * Safely write debug log
+   * @private
+   * @param {string} fileName - 文件名
+   * @param {string} content - 内容
+   */
+  _writeDebugLog(fileName, content) {
+    if (!IS_NODE || !this.sdk.debugLogPath || typeof this.sdk.debugLogPath !== 'string' || !fs || !path) {
+      return; // 浏览器环境或文件系统不可用时直接返回
+    }
+    
+    try {
+      const fullPath = path.join(this.sdk.debugLogPath, fileName);
+      fs.appendFileSync(fullPath, content);
+    } catch (error) {
+      console.warn(`Warning: Failed to write debug log to ${fileName}:`, error.message);
+    }
+  }
+
+  // ========== PDA Calculation Methods ==========
 
   /**
    * 计算 PDA 账户

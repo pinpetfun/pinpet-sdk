@@ -2,6 +2,8 @@
 const { PublicKey } = require('@solana/web3.js');
 const anchor = require('@coral-xyz/anchor');
 const CurveAMM = require('../utils/curve_amm');
+// 统一使用 buffer 包，所有平台一致
+const { Buffer } = require('buffer');
 
 /**
  * Chain Data Module
@@ -142,12 +144,12 @@ class ChainModule {
     try {
       // Parameter validation and conversion
       const mintPubkey = typeof mint === 'string' ? new PublicKey(mint) : mint;
-      
+
       // Calculate curve_account PDA address
       // Use the same seeds as in the contract: [b"borrowing_curve", mint_account.key().as_ref()]
       const [curveAccountPDA] = PublicKey.findProgramAddressSync(
         [
-          Buffer.from("borrowing_curve"), 
+          Buffer.from("borrowing_curve"),
           mintPubkey.toBuffer()
         ],
         this.sdk.programId
@@ -164,10 +166,10 @@ class ChainModule {
         if (!accountInfo) {
           throw new Error(`curve_account does not exist`);
         }
-        
+
         // Manually decode with BorshAccountsCoder
         const accountsCoder = new anchor.BorshAccountsCoder(this.sdk.program.idl);
-        
+
         // Try different account names
         try {
           decodedData = accountsCoder.decode('BorrowingBondingCurve', accountInfo.data);
@@ -220,7 +222,7 @@ class ChainModule {
         price: BigInt(decodedData.price.toString()),
         borrowTokenReserve: BigInt(decodedData.borrowTokenReserve.toString()),
         borrowSolReserve: BigInt(decodedData.borrowSolReserve.toString()),
-        
+
         // Numeric types remain unchanged
         swapFee: decodedData.swapFee,
         borrowFee: decodedData.borrowFee,
@@ -228,31 +230,31 @@ class ChainModule {
         feeSplit: decodedData.feeSplit,
         borrowDuration: decodedData.borrowDuration,
         bump: decodedData.bump,
-        
+
         // PublicKey types convert to string
         baseFeeRecipient: decodedData.baseFeeRecipient.toString(),
         feeRecipient: decodedData.feeRecipient.toString(),
         mint: decodedData.mint.toString(),
         upHead: decodedData.upHead ? decodedData.upHead.toString() : null,
         downHead: decodedData.downHead ? decodedData.downHead.toString() : null,
-        
+
         // SOL balance information
         baseFeeRecipientBalance: baseFeeRecipientBalance,  // Unit: lamports
         feeRecipientBalance: feeRecipientBalance,          // Unit: lamports
-        
+
         // Pool account information
         poolTokenAccount: poolTokenAccountPDA.toString(),           // Pool token account address
         poolSolAccount: poolSolAccountPDA.toString(),               // Pool SOL account address
         poolTokenBalance: BigInt(poolTokenBalance.value.amount),    // Pool token balance
         poolSolBalance: poolSolBalance,                             // Pool SOL balance (lamports)
-        
+
         // Additional metadata
         _metadata: {
           accountAddress: curveAccountPDA.toString(),
           mintAddress: mintPubkey.toString()
         }
       };
-      
+
       // Return converted data
       return convertedData;
 
@@ -301,19 +303,19 @@ class ChainModule {
     // Process results
     for (let i = 0; i < settled.length; i++) {
       const result = settled[i];
-      
+
       if (result.status === 'fulfilled') {
         const { success, data, error, mint } = result.value;
-        
+
         if (success) {
           results.push(data);
         } else {
           errors.push({ mint, error });
         }
       } else {
-        errors.push({ 
-          mint: mints[i].toString(), 
-          error: result.reason?.message || 'Unknown error' 
+        errors.push({
+          mint: mints[i].toString(),
+          error: result.reason?.message || 'Unknown error'
         });
       }
     }
@@ -339,10 +341,10 @@ class ChainModule {
    */
   getCurveAccountAddress(mint) {
     const mintPubkey = typeof mint === 'string' ? new PublicKey(mint) : mint;
-    
+
     const [curveAccountPDA] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from("borrowing_curve"), 
+        Buffer.from("borrowing_curve"),
         mintPubkey.toBuffer()
       ],
       this.sdk.programId
@@ -366,7 +368,7 @@ class ChainModule {
     if (!mint || typeof mint !== 'string') {
       throw new Error('price: mint address must be a valid string');
     }
-    
+
     try {
       // Parameter validation and conversion
       let mintPubkey;
@@ -375,16 +377,16 @@ class ChainModule {
       } catch (pubkeyError) {
         throw new Error(`Invalid mint address: ${mint}`);
       }
-      
+
       // Validate mintPubkey
       if (!mintPubkey || typeof mintPubkey.toBuffer !== 'function') {
         throw new Error(`Invalid mintPubkey`);
       }
-      
+
       // Calculate curve_account PDA address
       const [curveAccountPDA] = PublicKey.findProgramAddressSync(
         [
-          Buffer.from("borrowing_curve"), 
+          Buffer.from("borrowing_curve"),
           mintPubkey.toBuffer()
         ],
         this.sdk.programId
@@ -400,10 +402,10 @@ class ChainModule {
         if (!accountInfo) {
           throw new Error(`curve_account does not exist`);
         }
-        
+
         // Manually decode with BorshAccountsCoder
         const accountsCoder = new anchor.BorshAccountsCoder(this.sdk.program.idl);
-        
+
         try {
           decodedData = accountsCoder.decode('BorrowingBondingCurve', accountInfo.data);
         } catch (decodeError1) {
@@ -430,7 +432,7 @@ class ChainModule {
     } catch (error) {
       // If getting fails, return initial price
       console.warn(`price: Failed to get chain price, using initial price: ${error.message}`);
-      
+
       const initialPrice = CurveAMM.getInitialPrice();
       if (initialPrice === null) {
         throw new Error('price: Unable to calculate initial price');
@@ -548,7 +550,7 @@ class ChainModule {
       while (currentAddress && count < limit) {
         try {
           //console.log(`chain.orders: 遍历 Traversing [${count}] ${currentAddress.toString()}`);
-          
+
           // Get raw account data
           const accountInfo = await this.sdk.connection.getAccountInfo(currentAddress);
           if (!accountInfo) {
@@ -558,16 +560,42 @@ class ChainModule {
           // Manually decode with BorshAccountsCoder
           const accountsCoder = new anchor.BorshAccountsCoder(this.sdk.program.idl);
           let orderData;
-          
+
           try {
             orderData = accountsCoder.decode('MarginOrder', accountInfo.data);
           } catch (decodeError1) {
             try {
               orderData = accountsCoder.decode('marginOrder', accountInfo.data);
             } catch (decodeError2) {
-              throw new Error(`Cannot decode order account data: ${decodeError1.message}`);
+              console.log("orders 报错时的 accountInfo=", accountInfo);
+              console.log("decodeError1=", decodeError1);
+              throw new Error(`Cannot decode order account data: ${decodeError2.message}`);
             }
           }
+
+
+
+          // try {
+          //   // 尝试不同的账户类型名称
+          //   orderData = accountsCoder.decode('MarginOrder', accountInfo.data);
+          // } catch (decodeError1) {
+          //   try {
+          //     orderData = accountsCoder.decode('marginOrder', accountInfo.data);
+          //   } catch (decodeError2) {
+          //     try {
+          //       // 使用 program.account 直接解码
+          //       console.log(`使用 program.account 直接解码 PDA: ${pdaAddress}`);
+          //       orderData = this.sdk.program.account.marginOrder.fetch(currentAddress);
+          //     } catch (decodeError3) {
+          //       error = `解码失败: MarginOrder[${decodeError1.message}] marginOrder[${decodeError2.message}] fetch[${decodeError3.message}]`;
+          //       throw error
+          //     }
+          //   }
+          // }
+
+
+
+
 
           // Data transformation
           const convertedOrder = {
@@ -605,8 +633,12 @@ class ChainModule {
             break;
           }
 
+          // Add 50ms delay to avoid calling too fast
+          //await new Promise(resolve => setTimeout(resolve, 50));
+
         } catch (error) {
           // If order account doesn't exist or read fails, throw error
+          console.log("A_chain.orders() err:", error);
           throw new Error(`Failed to read order: ${error.message}`);
         }
       }
@@ -635,8 +667,226 @@ class ChainModule {
 
     } catch (error) {
       // Error handling
+      console.log("chain.orders() err:", error);
       console.error('chain.orders: Failed to get orders', error.message);
       throw new Error(`Failed to get orders: ${error.message}`);
+    }
+  }
+
+  /**
+   * 获取用户订单 Get User Orders (Read from Chain)
+   * @param {string} user - 用户地址
+   * @param {string} mint - 代币地址
+   * @param {Object} options - 查询参数
+   * @param {number} options.page - 页码，默认1
+   * @param {number} options.limit - 每页数量，默认200
+   * @param {string} options.order_by - 排序方式，默认'start_time_desc'
+   * @returns {Promise<Object>} 用户订单数据
+   * 
+   * @example
+   * const userOrders = await sdk.chain.user_orders(
+   *   '8iGFeUkRpyRx8w5uoUMbfZepUr6BfTdPuJmqGoNBntdb',
+   *   '4Kq51Kt48FCwdo5CeKjRVPodH1ticHa7mZ5n5gqMEy1X',
+   *   { page: 1, limit: 200, order_by: 'start_time_desc' }
+   * );
+   * // 返回格式:
+   * // {
+   * //   "success": true,
+   * //   "data": {
+   * //     "orders": [
+   * //       {
+   * //         "order_type": 2,
+   * //         "mint": "4Kq51Kt48FCwdo5CeKjRVPodH1ticHa7mZ5n5gqMEy1X",
+   * //         "user": "8iGFeUkRpyRx8w5uoUMbfZepUr6BfTdPuJmqGoNBntdb",
+   * //         "lock_lp_start_price": "753522984132656210522",
+   * //         "lock_lp_end_price": "833102733432007194898",
+   * //         "lock_lp_sol_amount": 2535405978,
+   * //         "lock_lp_token_amount": 32000000000000,
+   * //         "start_time": 1755964862,
+   * //         "end_time": 1756137662,
+   * //         "margin_sol_amount": 1909140052,
+   * //         "borrow_amount": 32000000000000,
+   * //         "position_asset_amount": 656690798,
+   * //         "borrow_fee": 1200,
+   * //         "order_pda": "59yP5tpDP6DBcyy4mge9wKKKdLmk45Th4sbd6Un9LxVN"
+   * //       }
+   * //     ],
+   * //     "total": 11,
+   * //     "user": "8iGFeUkRpyRx8w5uoUMbfZepUr6BfTdPuJmqGoNBntdb",
+   * //     "mint_account": "4Kq51Kt48FCwdo5CeKjRVPodH1ticHa7mZ5n5gqMEy1X",
+   * //     "page": 1,
+   * //     "limit": 200,
+   * //     "has_next": false,
+   * //     "has_prev": false
+   * //   },
+   * //   "message": "Operation successful"
+   * // }
+   * 
+   * // 使用订单数据:
+   * const orders = userOrders.data.orders; // 订单数组
+   * const totalCount = userOrders.data.total; // 总数量
+   */
+  async user_orders(user, mint, options = {}) {
+    try {
+      // Parameter validation
+      if (!user || typeof user !== 'string') {
+        throw new Error('user_orders: user address must be a valid string');
+      }
+      if (!mint || typeof mint !== 'string') {
+        throw new Error('user_orders: mint address must be a valid string');
+      }
+
+      // Set default parameters
+      const page = options.page || 1;
+      const limit = Math.min(options.limit || 200, 1000); // Maximum 1000
+      const orderBy = options.order_by || 'start_time_desc';
+
+      //console.log(`chain.user_orders: Get user orders, user=${user}, mint=${mint}, page=${page}, limit=${limit}`);
+
+      // Get curve_account data to get both linked list heads
+      const curveData = await this.getCurveAccount(mint);
+      const upHeadAddress = curveData.upHead;   // Short orders (up_orders)
+      const downHeadAddress = curveData.downHead; // Long orders (down_orders)
+
+      //console.log(`chain.user_orders: upHead=${upHeadAddress || 'null'}, downHead=${downHeadAddress || 'null'}`);
+
+      // Collect all user orders from both linked lists
+      const allUserOrders = [];
+
+      // Helper function to traverse a linked list and collect user orders
+      const traverseLinkedList = async (headAddress) => {
+        if (!headAddress) return [];
+
+        const orders = [];
+        let currentAddress = new PublicKey(headAddress);
+        let count = 0;
+        const maxTraverse = 1000; // Limit traversal to avoid infinite loops
+
+        while (currentAddress && count < maxTraverse) {
+          try {
+            // Get raw account data
+            const accountInfo = await this.sdk.connection.getAccountInfo(currentAddress);
+            if (!accountInfo) {
+              console.warn(`Order account ${currentAddress.toString()} does not exist, breaking traversal`);
+              break;
+            }
+
+            // Manually decode with BorshAccountsCoder
+            const accountsCoder = new anchor.BorshAccountsCoder(this.sdk.program.idl);
+            let orderData;
+
+            try {
+              orderData = accountsCoder.decode('MarginOrder', accountInfo.data);
+            } catch (decodeError1) {
+              try {
+                orderData = accountsCoder.decode('marginOrder', accountInfo.data);
+              } catch (decodeError2) {
+                console.warn(`Cannot decode order account ${currentAddress.toString()}: ${decodeError2.message}`);
+                break;
+              }
+            }
+
+            // Check if this order belongs to the target user
+            if (orderData.user.toString() === user) {
+              // Data transformation - convert to same format as fast.user_orders
+              const convertedOrder = {
+                // Convert chain number to API number format (keep as number for compatibility)
+                order_type: orderData.orderType, // 1=long, 2=short
+                mint: orderData.mint.toString(),
+                user: orderData.user.toString(),
+                // Convert BN type to string
+                lock_lp_start_price: orderData.lockLpStartPrice.toString(),
+                lock_lp_end_price: orderData.lockLpEndPrice.toString(),
+                // Keep numeric types unchanged
+                lock_lp_sol_amount: orderData.lockLpSolAmount.toNumber(),
+                lock_lp_token_amount: orderData.lockLpTokenAmount.toNumber(),
+                start_time: orderData.startTime,
+                end_time: orderData.endTime,
+                margin_sol_amount: orderData.marginSolAmount.toNumber(),
+                borrow_amount: orderData.borrowAmount.toNumber(),
+                position_asset_amount: orderData.positionAssetAmount.toNumber(),
+                borrow_fee: orderData.borrowFee,
+                // Add order_pda field
+                order_pda: currentAddress.toString()
+              };
+
+              orders.push(convertedOrder);
+              //console.log(`chain.user_orders: Found user order: ${currentAddress.toString()}, type=${convertedOrder.order_type}`);
+            }
+
+            count++;
+
+            // Move to next node
+            if (orderData.nextOrder) {
+              currentAddress = orderData.nextOrder;
+            } else {
+              break;
+            }
+
+            // Add small delay to avoid overloading
+            if (count % 50 === 0) {
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+
+          } catch (error) {
+            console.warn(`Error reading order ${currentAddress.toString()}: ${error.message}`);
+            break;
+          }
+        }
+
+        return orders;
+      };
+
+      // Traverse both linked lists in parallel to find user orders
+      const [upOrders, downOrders] = await Promise.all([
+        upHeadAddress ? traverseLinkedList(upHeadAddress) : [], // Short orders
+        downHeadAddress ? traverseLinkedList(downHeadAddress) : [] // Long orders
+      ]);
+
+      // Combine all orders
+      allUserOrders.push(...upOrders, ...downOrders);
+
+      //console.log(`chain.user_orders: Found ${allUserOrders.length} total user orders`);
+
+      // Sort orders by start_time
+      if (orderBy === 'start_time_desc') {
+        allUserOrders.sort((a, b) => b.start_time - a.start_time);
+      } else if (orderBy === 'start_time_asc') {
+        allUserOrders.sort((a, b) => a.start_time - b.start_time);
+      }
+
+      // Implement pagination
+      const totalOrders = allUserOrders.length;
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedOrders = allUserOrders.slice(startIndex, endIndex);
+
+      // Calculate pagination info
+      const hasNext = endIndex < totalOrders;
+      const hasPrev = page > 1;
+
+      //console.log(`chain.user_orders: Returning ${paginatedOrders.length} orders (page ${page}/${Math.ceil(totalOrders/limit)})`);
+
+      // Return same format as fast.user_orders
+      return {
+        success: true,
+        data: {
+          orders: paginatedOrders,
+          total: totalOrders,
+          user: user,
+          mint_account: mint,
+          page: page,
+          limit: limit,
+          has_next: hasNext,
+          has_prev: hasPrev
+        },
+        message: "Operation successful"
+      };
+
+    } catch (error) {
+      // Error handling
+      console.error('chain.user_orders: Failed to get user orders', error.message);
+      throw new Error(`Failed to get user orders: ${error.message}`);
     }
   }
 }

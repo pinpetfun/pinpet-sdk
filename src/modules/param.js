@@ -1,5 +1,7 @@
 const { PublicKey, Transaction, SystemProgram } = require('@solana/web3.js');
 const anchor = require('@coral-xyz/anchor');
+// 统一使用 buffer 包，所有平台一致
+const { Buffer } = require('buffer');
 
 /**
  * Parameter Module
