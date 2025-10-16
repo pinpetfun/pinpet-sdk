@@ -7,7 +7,7 @@ package-lock.json
 yarn.lock
 
 # Build output
-dist/
+#dist/
 build/
 coverage/
 
@@ -38,5 +38,4 @@ other_code/
 test-tools/
 tests/
 test_bot/
-
-test_bot/测试文档.md
+dist/

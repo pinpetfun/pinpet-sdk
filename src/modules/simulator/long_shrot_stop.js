@@ -269,7 +269,7 @@ async function simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPr
 
             // 安全检查：确保价格不会超过最大值 / Safety check: ensure price doesn't exceed maximum
             if (stopLossStartPrice >= CurveAMM.MAX_U128_PRICE) {
-                throw new Error('Stop loss price exceeded maximum after adjustment');
+                throw new Error(`Stop loss price exceeded maximum after adjustment: ${stopLossStartPrice} >= ${CurveAMM.MAX_U128_PRICE}`);
             }
         }
 

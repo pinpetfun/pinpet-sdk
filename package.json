@@ -1,6 +1,6 @@
 {
   "name": "spin-sdk",
-  "version": "0.1.39",
+  "version": "0.1.53",
   "description": "Solana Anchor 合约的 SDK",
   "main": "dist/spin-sdk.cjs.js",
   "module": "dist/spin-sdk.esm.js",

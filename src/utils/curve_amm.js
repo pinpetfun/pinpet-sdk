@@ -1,25 +1,8 @@
 const Decimal = require('decimal.js');
 
 // Configure Decimal.js to use 28-bit precision to match rust_decimal
-Decimal.set({ precision: 28 });
+Decimal.set({ precision: 28 }); 
 
-/**
- * Precision factor used for SOL calculations (10^9)
- * @type {bigint}
- */
-const SOL_PRECISION_FACTOR = 1_000_000_000n;
-
-/**
- * Precision factor used for Token calculations (10^6)
- * @type {bigint}
- */
-const TOKEN_PRECISION_FACTOR = 1_000_000n;
-
-/**
- * Precision factor used for price calculations (10^28)
- * @type {bigint}
- */
-const PRICE_PRECISION_FACTOR = 10_000_000_000_000_000_000_000_000_000n;
 
 /**
  * Denominator used for fee calculations (10^5)
@@ -70,7 +53,8 @@ class CurveAMM {
      * Decimal representation of precision factor = 10000000000000000000000000000
      * @type {Decimal}
      */
-    static PRICE_PRECISION_FACTOR_DECIMAL = new Decimal('10000000000000000000000000000');
+    //static PRICE_PRECISION_FACTOR_DECIMAL = new Decimal('10000000000000000000000000000');
+    static PRICE_PRECISION_FACTOR_DECIMAL =   new Decimal('100000000000000000000000000');
 
     /**
      * Decimal representation of Token precision factor = 1000000
@@ -89,7 +73,7 @@ class CurveAMM {
      * Maximum price for u128
      * @type {bigint}
      */
-    static MAX_U128_PRICE = 6920938463463374607431768211455n;
+    static MAX_U128_PRICE = 50000000000000000000000000000n;
 
 
     /**

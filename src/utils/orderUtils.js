@@ -300,7 +300,7 @@ class OrderUtils {
     
     // 如果没找到目标订单 If target order not found
     if (targetIndex === -1) {
-      console.log(`findPrevNext: 未找到指定的订单PDA Order PDA not found: ${findOrderPda}`);
+      console.log(`findPrevNext: 未找到指定的订单PDA Order PDA not found: ${findOrderPda} orders.length = ${orders.length}  `);
       return {
         prevOrder: null,
         nextOrder: null
@@ -385,7 +385,7 @@ class OrderUtils {
     
     // 没有找到时返回200
     // Return 200 when not found
-    console.log(`findOrderIndex: 订单未找到 Order not found for PDA: ${targetPdaString}`);
+    console.log(`findOrderIndex: 订单未找到 Order not found for PDA: ${targetPdaString} orders.length=${orders.length}`);
     return 200;
   }
 

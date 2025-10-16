@@ -611,10 +611,12 @@ class ChainModule {
             lock_lp_token_amount: orderData.lockLpTokenAmount.toNumber(),
             start_time: orderData.startTime,
             end_time: orderData.endTime,
+            margin_init_sol_amount: orderData.marginInitSolAmount.toNumber(),
             margin_sol_amount: orderData.marginSolAmount.toNumber(),
             borrow_amount: orderData.borrowAmount.toNumber(),
             position_asset_amount: orderData.positionAssetAmount.toNumber(),
             borrow_fee: orderData.borrowFee,
+            realized_sol_amount: orderData.realizedSolAmount.toNumber(),
             // Add order_pda field
             order_pda: currentAddress.toString()
           };
@@ -670,6 +672,210 @@ class ChainModule {
       console.log("chain.orders() err:", error);
       console.error('chain.orders: Failed to get orders', error.message);
       throw new Error(`Failed to get orders: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get MarginOrder account data by PDA address
+   * 
+   * Read the margin order account data for a specified PDA address from the blockchain,
+   * including all order details and status information.
+   * 
+   * @param {string|PublicKey} pda - MarginOrder account PDA address
+   * 
+   * @returns {Promise<Object>} Complete MarginOrder account data object
+   * 
+   * @returns {Promise<Object>} Return object contains following complete fields:
+   * 
+   * **Core Order Data:**
+   * @returns {number} returns.order_type - Order type: 1=long(做多), 2=short(做空)
+   * @returns {string} returns.mint - Token mint account address
+   * @returns {string} returns.user - User account address who created the order
+   * @returns {string|null} returns.next_order - Next order PDA address in linked list, null if none
+   * @returns {string|null} returns.prev_order - Previous order PDA address in linked list, null if none
+   * 
+   * **Price and Amount Data:**
+   * @returns {string} returns.lock_lp_start_price - LP start price when order was created (u128 as string)
+   * @returns {string} returns.lock_lp_end_price - LP end price when order was created (u128 as string)  
+   * @returns {number} returns.lock_lp_sol_amount - LP locked SOL amount (lamports)
+   * @returns {number} returns.lock_lp_token_amount - LP locked token amount (min unit)
+   * @returns {number} returns.margin_sol_amount - Margin SOL amount (lamports)
+   * @returns {number} returns.borrow_amount - Borrowed amount (lamports or min unit)
+   * @returns {number} returns.position_asset_amount - Position asset amount (min unit)
+   * 
+   * **Time and Fee Data:**
+   * @returns {number} returns.start_time - Order start time (Unix timestamp in seconds)
+   * @returns {number} returns.end_time - Order expiry time (Unix timestamp in seconds)
+   * @returns {number} returns.borrow_fee - Borrow fee rate (basis points, e.g. 300 = 3%)
+   * @returns {string} returns.open_price - Open price when order was created (u128 as string)
+   * 
+   * **Technical Data:**
+   * @returns {number} returns.bump - PDA bump seed
+   * 
+   * **Metadata:**
+   * @returns {Object} returns._metadata - Additional metadata information
+   * @returns {string} returns._metadata.accountAddress - Complete PDA address
+   * 
+   * @throws {Error} Throws error when MarginOrder account does not exist
+   * @throws {Error} Throws error when unable to decode account data
+   * @throws {Error} Throws error when network connection fails
+   * @throws {Error} Throws error when invalid PDA address provided
+   * 
+   * @example
+   * // Basic usage example
+   * try {
+   *   const orderData = await sdk.chain.getOrderAccount('FUYU1mKcV5XsJuK4SfcoD4pfXJvQ18pstg8fGqVLYGDG');
+   *   
+   *   // Display core order information
+   *   console.log('=== Order Information ===');
+   *   console.log('Order type:', orderData.order_type === 1 ? 'Long' : 'Short');
+   *   console.log('Token mint:', orderData.mint);
+   *   console.log('User:', orderData.user);
+   *   console.log('Margin amount:', orderData.margin_sol_amount / 1e9, 'SOL');
+   *   console.log('Position size:', orderData.position_asset_amount);
+   *   
+   *   // Display price information
+   *   console.log('=== Price Information ===');
+   *   console.log('Open price:', orderData.open_price);
+   *   console.log('LP start price:', orderData.lock_lp_start_price);
+   *   console.log('LP end price:', orderData.lock_lp_end_price);
+   *   
+   *   // Display time information
+   *   console.log('=== Time Information ===');
+   *   console.log('Start time:', new Date(orderData.start_time * 1000).toLocaleString());
+   *   console.log('End time:', new Date(orderData.end_time * 1000).toLocaleString());
+   *   console.log('Borrow fee:', orderData.borrow_fee / 100, '%');
+   *   
+   *   // Display linked list connections
+   *   console.log('=== Linked List Connections ===');
+   *   console.log('Previous order:', orderData.prev_order || 'None');
+   *   console.log('Next order:', orderData.next_order || 'None');
+   *   
+   * } catch (error) {
+   *   console.error('Failed to get order account:', error.message);
+   * }
+   * 
+   * @example
+   * // Order validation example
+   * async function validateOrder(orderPda) {
+   *   try {
+   *     const orderData = await sdk.chain.getOrderAccount(orderPda);
+   *     
+   *     // Check if order is expired
+   *     const currentTime = Math.floor(Date.now() / 1000);
+   *     const isExpired = currentTime > orderData.end_time;
+   *     
+   *     // Calculate remaining time
+   *     const remainingTime = orderData.end_time - currentTime;
+   *     
+   *     console.log('Order status:', isExpired ? 'Expired' : 'Active');
+   *     if (!isExpired) {
+   *       console.log('Remaining time:', Math.floor(remainingTime / 3600), 'hours');
+   *     }
+   *     
+   *     return {
+   *       isExpired,
+   *       remainingTime,
+   *       orderType: orderData.order_type === 1 ? 'long' : 'short',
+   *       user: orderData.user,
+   *       marginAmount: orderData.margin_sol_amount
+   *     };
+   *   } catch (error) {
+   *     console.error('Order validation failed:', error.message);
+   *     return null;
+   *   }
+   * }
+   * 
+   * @since 1.0.0
+   * @author SpinPet SDK Team
+   */
+  async getOrderAccount(pda) {
+    try {
+      // Parameter validation and conversion
+      let pdaPubkey;
+      try {
+        pdaPubkey = typeof pda === 'string' ? new PublicKey(pda) : pda;
+      } catch (pubkeyError) {
+        throw new Error(`Invalid PDA address: ${pda}`);
+      }
+
+      // Validate pdaPubkey
+      if (!pdaPubkey || typeof pdaPubkey.toBuffer !== 'function') {
+        throw new Error(`Invalid PDA public key`);
+      }
+
+      // Use Anchor program to fetch account data directly
+      // Method 1: Use program's fetch method
+      let decodedData;
+      try {
+        decodedData = await this.sdk.program.account.marginOrder.fetch(pdaPubkey);
+      } catch (fetchError) {
+        // Method 2: If fetch fails, use raw method
+        const accountInfo = await this.sdk.connection.getAccountInfo(pdaPubkey);
+        if (!accountInfo) {
+          throw new Error(`MarginOrder account does not exist`);
+        }
+
+        // Manually decode with BorshAccountsCoder
+        const accountsCoder = new anchor.BorshAccountsCoder(this.sdk.program.idl);
+
+        // Try different account names
+        try {
+          decodedData = accountsCoder.decode('marginOrder', accountInfo.data);
+        } catch (decodeError1) {
+          try {
+            // Try uppercase name
+            decodedData = accountsCoder.decode('MarginOrder', accountInfo.data);
+          } catch (decodeError2) {
+            // Both failed, throw original error
+            throw new Error(`Cannot decode MarginOrder account data: ${decodeError1.message}`);
+          }
+        }
+      }
+
+      // Convert data format (following the same pattern as getCurveAccount)
+      const convertedData = {
+        // Numeric types remain unchanged
+        order_type: decodedData.orderType,
+        start_time: decodedData.startTime,
+        end_time: decodedData.endTime,
+        lock_lp_sol_amount: decodedData.lockLpSolAmount.toNumber(),
+        lock_lp_token_amount: decodedData.lockLpTokenAmount.toNumber(),
+        margin_init_sol_amount: decodedData.marginInitSolAmount.toNumber(),
+        margin_sol_amount: decodedData.marginSolAmount.toNumber(),
+        borrow_amount: decodedData.borrowAmount.toNumber(),
+        position_asset_amount: decodedData.positionAssetAmount.toNumber(),
+        borrow_fee: decodedData.borrowFee,
+        realized_sol_amount: decodedData.realizedSolAmount.toNumber(),
+        bump: decodedData.bump,
+
+        // BN types convert to string
+        lock_lp_start_price: decodedData.lockLpStartPrice.toString(),
+        lock_lp_end_price: decodedData.lockLpEndPrice.toString(),
+        open_price: decodedData.openPrice.toString(),
+
+        // PublicKey types convert to string
+        mint: decodedData.mint.toString(),
+        user: decodedData.user.toString(),
+        next_order: decodedData.nextOrder ? decodedData.nextOrder.toString() : null,
+        prev_order: decodedData.prevOrder ? decodedData.prevOrder.toString() : null,
+
+        // Additional metadata
+        _metadata: {
+          accountAddress: pdaPubkey.toString()
+        }
+      };
+
+      // Return converted data
+      return convertedData;
+
+    } catch (error) {
+      // Provide concise error information
+      if (error.message.includes('Account does not exist')) {
+        throw new Error(`MarginOrder account does not exist for PDA: ${pda}`);
+      } else {
+        throw new Error(`Failed to get MarginOrder account: ${error.message}`);
+      }
     }
   }
 
@@ -802,10 +1008,12 @@ class ChainModule {
                 lock_lp_token_amount: orderData.lockLpTokenAmount.toNumber(),
                 start_time: orderData.startTime,
                 end_time: orderData.endTime,
+                margin_init_sol_amount: orderData.marginInitSolAmount.toNumber(),
                 margin_sol_amount: orderData.marginSolAmount.toNumber(),
                 borrow_amount: orderData.borrowAmount.toNumber(),
                 position_asset_amount: orderData.positionAssetAmount.toNumber(),
                 borrow_fee: orderData.borrowFee,
+                realized_sol_amount: orderData.realizedSolAmount.toNumber(),
                 // Add order_pda field
                 order_pda: currentAddress.toString()
               };

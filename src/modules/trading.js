@@ -65,7 +65,7 @@ class TradingModule {
 
     // 3. Build transaction data
     const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'up_orders', currentPrice, this.sdk.MAX_ORDERS_COUNT);
-    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders);
+    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders, this.sdk.MAX_ORDERS_COUNT);
 
     // 4. Calculate PDA accounts
     const accounts = this._calculatePDAAccounts(mint);
@@ -190,7 +190,7 @@ class TradingModule {
 
     // 3. Build transaction data
     const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'down_orders', currentPrice, this.sdk.MAX_ORDERS_COUNT);
-    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders);
+    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders, this.sdk.MAX_ORDERS_COUNT);
 
     // 4. Calculate PDA accounts
     const accounts = this._calculatePDAAccounts(mint);
@@ -316,7 +316,7 @@ class TradingModule {
 
     // 3. Build transaction data
     const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'up_orders', currentPrice, this.sdk.MAX_ORDERS_COUNT);
-    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders);
+    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders, this.sdk.MAX_ORDERS_COUNT);
 
     // 4. Calculate PDA accounts
     const accounts = this._calculatePDAAccounts(mint);
@@ -461,7 +461,7 @@ class TradingModule {
 
     // 3. 构建交易数据 / Build transaction data
     const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'down_orders', currentPrice, this.sdk.MAX_ORDERS_COUNT);
-    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders);
+    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders, this.sdk.MAX_ORDERS_COUNT);
 
     // 4. 计算 PDA 账户 / Calculate PDA accounts
     const accounts = this._calculatePDAAccounts(mint);
@@ -600,16 +600,19 @@ class TradingModule {
     const ordersStopData = await this.sdk.data.orders(mint.toString(), {
       type: 'down_orders',
       page: 1,
-      limit: this.FIND_MAX_ORDERS_COUNT
+      limit: this.sdk.FIND_MAX_ORDERS_COUNT
     });
+
+    // console.log('this.sdk.FIND_MAX_ORDERS_COUNT=',this.sdk.FIND_MAX_ORDERS_COUNT)
+    // console.log(`#_# closeLong: Found ${ordersStopData.data.orders.length} orders`);
 
     // 3. 使用 findPrevNext 查找前后订单 / Use findPrevNext to find prev/next orders
     const prevNext = this.sdk.findPrevNext(ordersStopData.data.orders, closeOrderPubkey.toString());
     let prevOrder = prevNext.prevOrder ? new PublicKey(prevNext.prevOrder.order_pda) : null;
     let nextOrder = prevNext.nextOrder ? new PublicKey(prevNext.nextOrder.order_pda) : null;
 
-    console.log(`closeLong: Found previous order: ${prevOrder ? prevOrder.toString() : 'null'}`);
-    console.log(`closeLong: Found next order: ${nextOrder ? nextOrder.toString() : 'null'}`);
+    // console.log(`closeLong: Found previous order: ${prevOrder ? prevOrder.toString() : 'null'}`);
+    // console.log(`closeLong: Found next order: ${nextOrder ? nextOrder.toString() : 'null'}`);
 
 
     // 安全的调试日志写入
@@ -621,7 +624,7 @@ class TradingModule {
     // 获取止损订单数据以便查找前后节点 / Get orders data to find prev/next nodes
     const ordersData = await this.sdk.data.orders(mint.toString(), {
       type: 'down_orders',
-      limit: this.sdk.MAX_ORDERS_COUNT + 1
+      limit: this.sdk.FIND_MAX_ORDERS_COUNT
     });
 
     // 计算订单在数组中的位置索引 / Calculate order position indices in array
@@ -657,16 +660,18 @@ class TradingModule {
 
     // 4. 获取当前价格并构建 lpPairs / Get current price and build lpPairs
     const currentPrice = await this.sdk.data.price(mintAccount);
-    const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'down_orders', currentPrice);
+    const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'down_orders', currentPrice, this.sdk.MAX_ORDERS_COUNT);
 
     // 5. 计算 PDA 账户 / Calculate PDA accounts
     const accounts = this._calculatePDAAccounts(mint);
 
     // 6. 构建订单账户数组（基于 lpPairs 对应的订单）/ Build order accounts array
-    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders);
+    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders, this.sdk.MAX_ORDERS_COUNT);
 
     // 7. 构建订单账户参数 / Build order accounts parameters
     const orderAccountsParams = this._buildOrderAccountsParams(orderAccounts);
+
+    //console.log(`closeLong orderAccountsParams=`, orderAccountsParams);
 
     // 8. 构建交易指令 / Build transaction instructions
     const modifyComputeUnits = ComputeBudgetProgram.setComputeUnitLimit({
@@ -701,6 +706,9 @@ class TradingModule {
         nextOrder: nextOrder       // 下一个订单 / Next order
       })
       .instruction();
+
+    //console.log(`#_# closeLong - closeOrder `, closeOrderPubkey.toString(), ` prevOrder `, prevOrder?.toString(), ` nextOrder `, nextOrder?.toString())
+
 
     // 9. 创建交易并添加指令 / Create transaction and add instructions
     const transaction = new Transaction();
@@ -768,7 +776,7 @@ class TradingModule {
     // 我的关闭损订单数据以便查找前后节点 / Get orders data to find prev/next nodes
     const ordersStopData = await this.sdk.data.orders(mint.toString(), {
       type: 'up_orders',
-      limit: this.FIND_MAX_ORDERS_COUNT
+      limit: this.sdk.FIND_MAX_ORDERS_COUNT
     });
 
     // 3. 使用 findPrevNext 查找前后订单 Use findPrevNext to find prev/next orders
@@ -787,7 +795,7 @@ class TradingModule {
     // 2. 获取订单数据以便查找前后节点 Get orders data to find prev/next nodes
     const ordersData = await this.sdk.data.orders(mint.toString(), {
       type: 'up_orders',
-      limit: this.sdk.MAX_ORDERS_COUNT+1
+      limit: this.sdk.FIND_MAX_ORDERS_COUNT
     });
 
     // 计算订单在数组中的位置索引 / Calculate order position indices in array
@@ -823,16 +831,18 @@ class TradingModule {
 
     // 4. 获取当前价格并构建 lpPairs / Get current price and build lpPairs
     const currentPrice = await this.sdk.data.price(mintAccount);
-    const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'up_orders', currentPrice);
+    const lpPairs = this.sdk.buildLpPairs(ordersData.data.orders, 'up_orders', currentPrice, this.sdk.MAX_ORDERS_COUNT);
 
     // 5. 计算 PDA 账户 Calculate PDA accounts
     const accounts = this._calculatePDAAccounts(mint);
 
     // 6. 构建订单账户数组（基于 lpPairs 对应的订单）Build order accounts array
-    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders);
+    const orderAccounts = this.sdk.buildOrderAccounts(ordersData.data.orders, this.sdk.MAX_ORDERS_COUNT);
 
     // 7. 构建订单账户参数 Build order accounts parameters
     const orderAccountsParams = this._buildOrderAccountsParams(orderAccounts);
+
+    //console.log(`closeShort: Order accounts params: ${JSON.stringify(orderAccountsParams)}`);
 
     // 8. 获取用户代币账户 Get user token account
     const userTokenAccount = await getAssociatedTokenAddress(

@@ -25,8 +25,8 @@ const DEFAULT_NETWORKS = {
   LOCALNET: {
     name: 'localnet',
     defaultDataSource: 'chain', // 'fast' or 'chain'
-    solanaEndpoint: 'http://192.168.18.5:8899',
-    spin_fast_api_url: 'http://192.168.18.5:8080',
+    solanaEndpoint: 'http://localhost:8899',
+    spin_fast_api_url: 'http://localhost:5051',
     fee_recipient: 'GesAj2dTn2wdNcxj4x8qsqS9aNRVPBPkE76aaqg7skxu',
     base_fee_recipient: '5YHi1HsxobLiTD6NQfHJQpoPoRjMuNyXp4RroTvR6dKi',
     params_account: '8VWPLdFVW3Vi2U6uo3ypjRL5mCcYWXKgD4Saj2MEEeHc'

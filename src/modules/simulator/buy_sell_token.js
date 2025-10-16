@@ -29,7 +29,7 @@ const { calcLiqTokenBuy, calcLiqTokenSell } = require('./calcLiq');
 async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null, lastPrice = null, ordersData = null) {
   // 获取价格和订单数据
 
-  console.log('simulateTokenBuy', mint, buyTokenAmount, passOrder, lastPrice, ordersData);
+  //console.log('simulateTokenBuy', mint, buyTokenAmount, passOrder, lastPrice, ordersData);
 
   let price = lastPrice;
   if (!price) {
