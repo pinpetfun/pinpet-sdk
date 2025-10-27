@@ -20,7 +20,7 @@ const DEFAULT_NETWORKS = {
     spin_fast_api_url: 'https://devtestapi.spin.pet',
     fee_recipient: 'GesAj2dTn2wdNcxj4x8qsqS9aNRVPBPkE76aaqg7skxu',
     base_fee_recipient: '5YHi1HsxobLiTD6NQfHJQpoPoRjMuNyXp4RroTvR6dKi',
-    params_account: '8VWPLdFVW3Vi2U6uo3ypjRL5mCcYWXKgD4Saj2MEEeHc'
+    params_account: '4yTBVZZQLiYi2p2xgwQXPb329z9jsQnhoPJyGmF3R4hb'
   },
   LOCALNET: {
     name: 'localnet',
@@ -29,7 +29,7 @@ const DEFAULT_NETWORKS = {
     spin_fast_api_url: 'http://localhost:5051',
     fee_recipient: 'GesAj2dTn2wdNcxj4x8qsqS9aNRVPBPkE76aaqg7skxu',
     base_fee_recipient: '5YHi1HsxobLiTD6NQfHJQpoPoRjMuNyXp4RroTvR6dKi',
-    params_account: '8VWPLdFVW3Vi2U6uo3ypjRL5mCcYWXKgD4Saj2MEEeHc'
+    params_account: '4yTBVZZQLiYi2p2xgwQXPb329z9jsQnhoPJyGmF3R4hb'
   }
 };
 

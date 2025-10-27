@@ -5,8 +5,8 @@
  */
 
 // Import main SDK class
-const SpinPetSdk = require('./sdk');
-const spinpetIdl = require('./idl/spinpet.json');
+const PinPetSdk = require('./sdk');
+const spinpetIdl = require('./idl/pinpet.json');
 const { PublicKey } = require('@solana/web3.js');
 
 // Import modules (optional, users can also access directly via sdk.trading)
@@ -27,7 +27,7 @@ const SPINPET_PROGRAM_ID = new PublicKey(spinpetIdl.address); // Replace with ac
 // Main exports
 module.exports = {
   // Main SDK class
-  SpinPetSdk,
+  PinPetSdk,
   
   // Constants
   SPINPET_PROGRAM_ID,
@@ -40,4 +40,4 @@ module.exports = {
 };
 
 // Default export SDK class
-module.exports.default = SpinPetSdk;
+module.exports.default = PinPetSdk;

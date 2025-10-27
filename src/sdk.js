@@ -28,13 +28,13 @@ const SimulatorModule = require('./modules/simulator');
 const ChainModule = require('./modules/chain');
 const OrderUtils = require('./utils/orderUtils');
 const CurveAMM = require('./utils/curve_amm');
-const spinpetIdl = require('./idl/spinpet.json');
+const spinpetIdl = require('./idl/pinpet.json');
 
 /**
  * SpinPet SDK Main Class
  * Provides modular interfaces for interacting with SpinPet protocol
  */
-class SpinPetSdk {
+class PinPetSdk {
   /**
    * Constructor
    * @param {Connection} connection - Solana connection instance
@@ -43,7 +43,7 @@ class SpinPetSdk {
    * @param {Object} options - Configuration options (optional)
    */
   constructor(connection, programId, options = {}) {
-    //console.log("SpinPetSdk options=",options)
+    //console.log("PinPetSdk options=",options)
     // Save configuration options
     this.options = options;
     
@@ -367,4 +367,4 @@ class SpinPetSdk {
 
 }
 
-module.exports = SpinPetSdk;
+module.exports = PinPetSdk;

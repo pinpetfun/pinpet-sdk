@@ -565,27 +565,29 @@ class TradingModule {
   }
 
   /**
-   * 平仓做多 / Close Long Position
+   * 平仓做多（增强版，支持自定义收款账户）/ Close Long Position (Plus version with custom user SOL account)
    * @param {Object} params - 平仓参数 / Close position parameters
    * @param {string|PublicKey} params.mintAccount - 代币铸造账户地址 / Token mint account address
    * @param {string|PublicKey} params.closeOrder - 需要关闭的订单地址 / Order address to close
    * @param {anchor.BN} params.sellTokenAmount - 希望卖出的token数量 / Amount of tokens to sell
    * @param {anchor.BN} params.minSolOutput - 卖出后最少得到的sol数量 / Minimum SOL output after selling
    * @param {PublicKey} params.payer - 支付者公钥 / Payer public key
+   * @param {PublicKey} params.closeUserAccount - 平仓定单的用户账户 / User SOL account to receive funds
    * @param {Object} options - 可选参数 / Optional parameters
    * @param {number} options.computeUnits - 计算单元限制，默认1400000 / Compute units limit, default 1400000
    * @returns {Promise<Object>} 包含交易对象、签名者和账户信息的对象 / Object containing transaction, signers and account info
-   * 
+   *
    * @example
-   * const result = await sdk.trading.closeLong({
+   * const result = await sdk.trading.closeLongPlus({
    *   mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
    *   closeOrder: "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA",
    *   sellTokenAmount: new anchor.BN("1000000000"),
    *   minSolOutput: new anchor.BN("100000000"),
-   *   payer: wallet.publicKey
+   *   payer: wallet.publicKey,
+   *   closeUserAccount: userSolAccount
    * });
    */
-  async closeLong({ mintAccount, closeOrder, sellTokenAmount, minSolOutput, payer }, options = {}) {
+  async closeLongPlus({ mintAccount, closeOrder, sellTokenAmount, minSolOutput, payer, closeUserAccount }, options = {}) {
     const { computeUnits = 1400000 } = options;
 
     // 1. 参数验证和转换 / Parameter validation and conversion
@@ -694,7 +696,7 @@ class TradingModule {
         curveAccount: accounts.curveAccount,
         poolTokenAccount: accounts.poolTokenAccount,
         poolSolAccount: accounts.poolSolAccount,
-        userSolAccount: payer, // 用户SOL账户，通常是payer本身 / User SOL account, usually the payer itself
+        userSolAccount: closeUserAccount, // 用户SOL账户，接收平仓后的SOL / User SOL account to receive funds after closing
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
         rent: SYSVAR_RENT_PUBKEY,
@@ -707,7 +709,7 @@ class TradingModule {
       })
       .instruction();
 
-    //console.log(`#_# closeLong - closeOrder `, closeOrderPubkey.toString(), ` prevOrder `, prevOrder?.toString(), ` nextOrder `, nextOrder?.toString())
+    //console.log(`#_# closeLongPlus - closeOrder `, closeOrderPubkey.toString(), ` prevOrder `, prevOrder?.toString(), ` nextOrder `, nextOrder?.toString())
 
 
     // 9. 创建交易并添加指令 / Create transaction and add instructions
@@ -742,27 +744,62 @@ class TradingModule {
   }
 
   /**
-   * 平仓做空 Close Short Position
+   * 平仓做多 / Close Long Position
+   * @param {Object} params - 平仓参数 / Close position parameters
+   * @param {string|PublicKey} params.mintAccount - 代币铸造账户地址 / Token mint account address
+   * @param {string|PublicKey} params.closeOrder - 需要关闭的订单地址 / Order address to close
+   * @param {anchor.BN} params.sellTokenAmount - 希望卖出的token数量 / Amount of tokens to sell
+   * @param {anchor.BN} params.minSolOutput - 卖出后最少得到的sol数量 / Minimum SOL output after selling
+   * @param {PublicKey} params.payer - 支付者公钥 / Payer public key
+   * @param {Object} options - 可选参数 / Optional parameters
+   * @param {number} options.computeUnits - 计算单元限制，默认1400000 / Compute units limit, default 1400000
+   * @returns {Promise<Object>} 包含交易对象、签名者和账户信息的对象 / Object containing transaction, signers and account info
+   *
+   * @example
+   * const result = await sdk.trading.closeLong({
+   *   mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
+   *   closeOrder: "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA",
+   *   sellTokenAmount: new anchor.BN("1000000000"),
+   *   minSolOutput: new anchor.BN("100000000"),
+   *   payer: wallet.publicKey
+   * });
+   */
+  async closeLong({ mintAccount, closeOrder, sellTokenAmount, minSolOutput, payer }, options = {}) {
+    // 直接调用 closeLongPlus，使用 payer 作为 closeUserAccount
+    return this.closeLongPlus({
+      mintAccount,
+      closeOrder,
+      sellTokenAmount,
+      minSolOutput,
+      payer,
+      closeUserAccount: payer
+    }, options);
+  }
+
+  /**
+   * 平仓做空（增强版，支持自定义收款账户）/ Close Short Position (Plus version with custom user SOL account)
    * @param {Object} params - 平仓参数 Close position parameters
    * @param {string|PublicKey} params.mintAccount - 代币铸造账户地址 Token mint account address
    * @param {string|PublicKey} params.closeOrder - 需要关闭的订单地址 Order address to close
    * @param {anchor.BN} params.buyTokenAmount - 希望买入的token数量 Amount of tokens to buy
    * @param {anchor.BN} params.maxSolAmount - 愿意给出的最大sol数量 Maximum SOL amount to spend
    * @param {PublicKey} params.payer - 支付者公钥 Payer public key
+   * @param {PublicKey} params.closeUserAccount - 平仓定单的用户账户 / User SOL account to receive funds
    * @param {Object} options - 可选参数 Optional parameters
    * @param {number} options.computeUnits - 计算单元限制，默认1400000 Compute units limit, default 1400000
    * @returns {Promise<Object>} 包含交易对象、签名者和账户信息的对象 Object containing transaction, signers and account info
-   * 
+   *
    * @example
-   * const result = await sdk.trading.closeShort({
+   * const result = await sdk.trading.closeShortPlus({
    *   mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
    *   closeOrder: "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA",
    *   buyTokenAmount: new anchor.BN("1000000000"),
    *   maxSolAmount: new anchor.BN("100000000"),
-   *   payer: wallet.publicKey
+   *   payer: wallet.publicKey,
+   *   closeUserAccount: userSolAccount
    * });
    */
-  async closeShort({ mintAccount, closeOrder, buyTokenAmount, maxSolAmount, payer }, options = {}) {
+  async closeShortPlus({ mintAccount, closeOrder, buyTokenAmount, maxSolAmount, payer, closeUserAccount }, options = {}) {
     const { computeUnits = 1400000 } = options;
 
     // 1. 参数验证和转换 Parameter validation and conversion
@@ -885,7 +922,7 @@ class TradingModule {
         poolTokenAccount: accounts.poolTokenAccount,
         poolSolAccount: accounts.poolSolAccount,
         userTokenAccount: userTokenAccount,
-        userSolAccount: payer, // 用户SOL账户，通常是payer本身 User SOL account, usually the payer itself
+        userSolAccount: closeUserAccount, // 用户SOL账户，接收平仓后的SOL / User SOL account to receive funds after closing
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
         rent: SYSVAR_RENT_PUBKEY,
@@ -935,6 +972,39 @@ class TradingModule {
         closeOrderAddress: closeOrderPubkey
       }
     };
+  }
+
+  /**
+   * 平仓做空 Close Short Position
+   * @param {Object} params - 平仓参数 Close position parameters
+   * @param {string|PublicKey} params.mintAccount - 代币铸造账户地址 Token mint account address
+   * @param {string|PublicKey} params.closeOrder - 需要关闭的订单地址 Order address to close
+   * @param {anchor.BN} params.buyTokenAmount - 希望买入的token数量 Amount of tokens to buy
+   * @param {anchor.BN} params.maxSolAmount - 愿意给出的最大sol数量 Maximum SOL amount to spend
+   * @param {PublicKey} params.payer - 支付者公钥 Payer public key
+   * @param {Object} options - 可选参数 Optional parameters
+   * @param {number} options.computeUnits - 计算单元限制，默认1400000 Compute units limit, default 1400000
+   * @returns {Promise<Object>} 包含交易对象、签名者和账户信息的对象 Object containing transaction, signers and account info
+   *
+   * @example
+   * const result = await sdk.trading.closeShort({
+   *   mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
+   *   closeOrder: "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA",
+   *   buyTokenAmount: new anchor.BN("1000000000"),
+   *   maxSolAmount: new anchor.BN("100000000"),
+   *   payer: wallet.publicKey
+   * });
+   */
+  async closeShort({ mintAccount, closeOrder, buyTokenAmount, maxSolAmount, payer }, options = {}) {
+    // 直接调用 closeShortPlus，使用 payer 作为 closeUserAccount
+    return this.closeShortPlus({
+      mintAccount,
+      closeOrder,
+      buyTokenAmount,
+      maxSolAmount,
+      payer,
+      closeUserAccount: payer
+    }, options);
   }
 
   // ========== Debug File Management Methods ==========

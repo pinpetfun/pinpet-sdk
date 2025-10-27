@@ -15,7 +15,7 @@ export interface NetworkConfig {
   params_account: string;
 }
 
-export interface SpinPetSdkOptions {
+export interface PinPetSdkOptions {
   defaultDataSource?: DataSourceType;
   solanaEndpoint?: string;
   spin_fast_api_url?: string;
@@ -248,11 +248,11 @@ export interface DataInterface {
 
 // ========================= 主 SDK 类型定义 =========================
 
-export declare class SpinPetSdk {
+export declare class PinPetSdk {
   connection: Connection;
   programId: PublicKey;
   program: Program;
-  options: SpinPetSdkOptions;
+  options: PinPetSdkOptions;
   defaultDataSource: DataSourceType;
   feeRecipient: PublicKey;
   baseFeeRecipient: PublicKey;
@@ -277,7 +277,7 @@ export declare class SpinPetSdk {
   constructor(
     connection: Connection,
     programId: string | PublicKey,
-    options?: SpinPetSdkOptions
+    options?: PinPetSdkOptions
   );
 
   // OrderUtils 快捷方法
@@ -339,4 +339,4 @@ export declare class ParamModule implements ParamModule {}
 export declare class SimulatorModule implements SimulatorModule {}
 
 // 默认导出
-export default SpinPetSdk;
+export default PinPetSdk;

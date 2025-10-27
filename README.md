@@ -1,14 +1,25 @@
-# SpinPet SDK
+# PinPet SDK
 
-A JavaScript SDK for interacting with SpinPet protocol-related Solana Anchor smart contracts. The SDK supports both Node.js and browser environments, providing modular functionality for trading, token management, order management, and more.
+A JavaScript SDK for interacting with PinPet protocol-related Solana Anchor smart contracts. The SDK supports both Node.js and browser environments, providing modular functionality for trading, token management, order management, and more.
+
+
+## PinPet Project Repositories
+
+- **[Technical Documentation](https://doc.pinpet.fun/#/)** - Multi-language technical specification docs
+- **[pinpet-sdk](https://github.com/pinpetfun/pinpet-sdk)** - SDK for trading operations
+- **[pinpet-anchor](https://github.com/pinpetfun/pinpet-anchor)** - Solana smart contract code
+- **[pinpet-web](https://github.com/pinpetfun/pinpet-web)** - Website frontend code
+- **[pinpet-server](https://github.com/pinpetfun/pinpet-server)** - Transaction acceleration server code
+
+
 
 ## Installation 
 
 ```bash
-npm install spin-sdk
+npm install pinpet-sdk
 ```
 
-**NPM Package**: https://www.npmjs.com/package/spin-sdk
+**NPM Package**: https://www.npmjs.com/package/pinpet-sdk
 
 ## Table of Contents
 
@@ -30,7 +41,7 @@ npm install spin-sdk
 ### Constructor
 
 ```javascript
-new SpinPetSdk(connection, programId, options)
+new PinPetSdk(connection, programId, options)
 ```
 
 **Parameters:**
@@ -57,7 +68,7 @@ new SpinPetSdk(connection, programId, options)
 **Example:**
 ```javascript
 const { Connection, PublicKey } = require('@solana/web3.js');
-const { SpinPetSdk, getDefaultOptions, SPINPET_PROGRAM_ID } = require('spin-sdk');
+const { PinPetSdk, getDefaultOptions, SPINPET_PROGRAM_ID } = require('pinpet-sdk');
 
 // Create connection
 const connection = new Connection('http://localhost:8899', 'confirmed');
@@ -66,7 +77,7 @@ const connection = new Connection('http://localhost:8899', 'confirmed');
 const options = getDefaultOptions('LOCALNET');
 
 // Initialize SDK (Note: wallet parameter is no longer required)
-const sdk = new SpinPetSdk(
+const sdk = new PinPetSdk(
   connection, 
   SPINPET_PROGRAM_ID, 
   {
@@ -490,7 +501,7 @@ sdk.findOrderIndex(orders, targetOrderPda)
 ### Network Configuration
 
 ```javascript
-const { getDefaultOptions } = require('spin-sdk');
+const { getDefaultOptions } = require('pinpet-sdk');
 
 // Get default configuration
 const options = getDefaultOptions('MAINNET');  // 'MAINNET' | 'TESTNET' | 'LOCALNET'
@@ -516,7 +527,7 @@ SDK supports two data sources:
 
 ```javascript
 // Global configuration of default data source
-const sdk = new SpinPetSdk(connection, programId, {
+const sdk = new PinPetSdk(connection, programId, {
   ...options,
   defaultDataSource: 'fast'  // or 'chain'
 });
@@ -589,7 +600,7 @@ await sdk.data.user_orders(user, mint, options)
 ```javascript
 const { Connection, PublicKey } = require('@solana/web3.js');
 const anchor = require('@coral-xyz/anchor');
-const { SpinPetSdk, getDefaultOptions, SPINPET_PROGRAM_ID } = require('spin-sdk');
+const { PinPetSdk, getDefaultOptions, SPINPET_PROGRAM_ID } = require('pinpet-sdk');
 
 async function example() {
   // 1. Create connection
@@ -599,7 +610,7 @@ async function example() {
   const options = getDefaultOptions('LOCALNET');
   
   // 3. Initialize SDK (Note: wallet parameter removed)
-  const sdk = new SpinPetSdk(connection, SPINPET_PROGRAM_ID, {
+  const sdk = new PinPetSdk(connection, SPINPET_PROGRAM_ID, {
     ...options,
     defaultDataSource: 'fast'
   });
@@ -671,4 +682,4 @@ Please refer to the contributing guidelines in the repository.
 
 ## Support
 
-For issues and questions, please visit the [GitHub repository](https://github.com/your-repo/spin-sdk).
+For issues and questions, please visit the [GitHub repository](https://github.com/your-repo/pinpet-sdk).
