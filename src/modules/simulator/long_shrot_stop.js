@@ -1,17 +1,128 @@
 
 const CurveAMM = require('../../utils/curve_amm');
 const {transformOrdersData , checkPriceRangeOverlap} = require('./stop_loss_utils')
-const { PRICE_ADJUSTMENT_PERCENTAGE } = require('./utils');
+const { PRICE_ADJUSTMENT_PERCENTAGE, MIN_STOP_LOSS_PERCENT } = require('./utils');
+const JSONbig = require('json-bigint')({ storeAsString: false });
 
 /**
  * Simulate long position stop loss calculation
- * @param {string} mint - Token address
- * @param {bigint|string|number} buyTokenAmount - Token amount to buy for long position (u64 format, precision 10^6)
- * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format)
- * @param {Object|null} lastPrice - Token info, default null
- * @param {Object|null} ordersData - Orders data, default null
- * @param {number} borrowFee - Borrow fee rate, default 2000 (2000/100000 = 0.02%)
- * @returns {Promise<Object>} Stop loss analysis result
+ *
+ * 模拟做多仓位的止损计算,返回可执行的止损价格和相关参数。
+ * 该函数会自动调整止损价格以避免与现有订单的价格区间重叠,
+ * 并返回合约执行时需要的插入位置索引数组。
+ *
+ * @param {string} mint - Token address / 代币地址
+ * @param {bigint|string|number} buyTokenAmount - Token amount to buy for long position (u64 format, precision 10^6) / 做多买入的代币数量 (u64格式, 精度 10^6)
+ * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format) / 用户期望的止损价格 (u128格式)
+ * @param {Object|null} lastPrice - Token info, default null / 代币当前价格信息,默认null会自动获取
+ * @param {Object|null} ordersData - Orders data, default null / 订单数据,默认null会自动获取
+ * @param {number} borrowFee - Borrow fee rate, default 2000 (2000/100000 = 0.02%) / 借贷手续费率,默认2000 (2000/100000 = 0.02%)
+ *
+ * @returns {Promise<Object>} Stop loss analysis result / 止损分析结果对象
+ * @returns {bigint} returns.executableStopLossPrice - 计算出的可执行止损价格 (u128格式)
+ *   - 这是经过调整后不与现有订单重叠的止损价格
+ *   - 可能低于用户输入的 stopLossPrice (因为需要避免重叠)
+ *   - 可以直接用于调用 sdk.trading.long() 的 closePrice 参数
+ *
+ * @returns {bigint} returns.tradeAmount - 止损时预计卖出获得的SOL数量 (lamports)
+ *   - 这是在 executableStopLossPrice 价格卖出 buyTokenAmount 代币能获得的SOL
+ *   - 不包含手续费扣除
+ *   - 用于估算止损时的收益
+ *
+ * @returns {number} returns.stopLossPercentage - 止损百分比 (相对于当前价格)
+ *   - 计算公式: ((currentPrice - executableStopLossPrice) / currentPrice) * 100
+ *   - 例如: 3.5 表示止损价格比当前价格低3.5%
+ *   - 做多时这个值应该是正数 (止损价低于当前价)
+ *
+ * @returns {number} returns.leverage - 杠杆倍数
+ *   - 计算公式: currentPrice / (currentPrice - executableStopLossPrice)
+ *   - 例如: 28.57 表示约28.57倍杠杆
+ *   - 杠杆越高,风险越大,但潜在收益也越大
+ *
+ * @returns {bigint} returns.currentPrice - 当前价格 (u128格式)
+ *   - 计算时使用的代币当前价格
+ *   - 用于参考和验证
+ *
+ * @returns {number} returns.iterations - 价格调整迭代次数
+ *   - 为了避免价格区间重叠,函数自动调整止损价格的次数
+ *   - 每次调整会将价格降低 PRICE_ADJUSTMENT_PERCENTAGE (默认0.5%)
+ *   - 如果迭代次数过高,可能需要重新选择止损价格
+ *
+ * @returns {bigint} returns.originalStopLossPrice - 用户输入的原始止损价格 (u128格式)
+ *   - 用于对比调整前后的价格差异
+ *   - 如果 executableStopLossPrice 与此差异较大,说明现有订单较密集
+ *
+ * @returns {number[]} returns.close_insert_indices - 平仓订单插入位置的候选索引数组 ⭐ 新增
+ *   - 数组包含多个候选插入位置的 OrderBook 索引值
+ *   - 结构: [主位置index, 前1个index, 后1个index, 前2个index, 后2个index, 前3个index, 后3个index]
+ *   - 例如: [25, 10, 33, 5, 40, 2, 50] 表示主位置是索引25,备选位置包括索引10、33等
+ *   - 最多包含7个索引值 (1个主位置 + 前3个 + 后3个)
+ *   - 如果订单簿为空,返回 [65535] (u16::MAX,表示插入到头部)
+ *   - 用途: 传递给 sdk.trading.long() 的 closeInsertIndices 参数
+ *   - 提高成功率: 即使主位置的订单被删除,合约也能尝试其他候选位置
+ *
+ * @returns {bigint} returns.estimatedMargin - 预估所需保证金 (SOL lamports)
+ *   - 计算公式: 买入成本 - 平仓收益(扣除手续费后)
+ *   - 这是执行此止损策略需要的最少保证金
+ *   - 可以用于 sdk.trading.long() 的 marginSolMax 参数
+ *   - 实际调用时建议增加10-20%余量以应对价格波动
+ *
+ * @throws {Error} 当缺少必需参数时
+ * @throws {Error} 当无法获取价格或订单数据时
+ * @throws {Error} 当达到最大迭代次数仍无法找到合适的止损价格时
+ * @throws {Error} 当价格调整后变为负数时
+ *
+ * @example
+ * // 基础用法: 做多1个代币,止损价格为当前价格的97%
+ * const result = await sdk.simulator.simulateLongStopLoss(
+ *   '4Kq51Kt48FCwdo5CeKjRVPodH1ticHa7mZ5n5gqMEy1X',  // mint
+ *   1000000n,                                          // 1 token (精度10^6)
+ *   BigInt('97000000000000000000')                     // 止损价格
+ * );
+ *
+ * console.log(`可执行止损价格: ${result.executableStopLossPrice}`);
+ * console.log(`止损百分比: ${result.stopLossPercentage}%`);
+ * console.log(`杠杆倍数: ${result.leverage}x`);
+ * console.log(`预估保证金: ${result.estimatedMargin} lamports`);
+ * console.log(`插入位置索引: ${result.close_insert_indices}`);
+ *
+ * @example
+ * // 完整使用流程: 模拟后执行做多交易
+ * async function openLongPosition(sdk, mint, buyTokenAmount, stopLossPrice) {
+ *   // 1. 模拟止损计算
+ *   const simulation = await sdk.simulator.simulateLongStopLoss(
+ *     mint,
+ *     buyTokenAmount,
+ *     stopLossPrice
+ *   );
+ *
+ *   // 2. 检查止损价格是否被大幅调整
+ *   const priceDiff = Number((simulation.originalStopLossPrice - simulation.executableStopLossPrice) * 10000n / simulation.originalStopLossPrice) / 100;
+ *   if (priceDiff > 1.0) {
+ *     console.warn(`止损价格被调整了 ${priceDiff}%, 当前订单较密集`);
+ *   }
+ *
+ *   // 3. 准备交易参数
+ *   const maxSolAmount = simulation.estimatedMargin * 120n / 100n; // 增加20%余量
+ *   const marginSolMax = simulation.estimatedMargin * 115n / 100n; // 增加15%余量
+ *
+ *   // 4. 执行做多交易
+ *   const tx = await sdk.trading.long({
+ *     mint: mint,
+ *     buyTokenAmount: buyTokenAmount,
+ *     maxSolAmount: maxSolAmount,
+ *     marginSolMax: marginSolMax,
+ *     closePrice: simulation.executableStopLossPrice,
+ *     closeInsertIndices: simulation.close_insert_indices  // ⭐ 使用新的索引数组
+ *   });
+ *
+ *   return tx;
+ * }
+ *
+ * @see {@link simulateShortStopLoss} 做空仓位的止损计算
+ * @see {@link simulateLongSolStopLoss} 基于SOL金额的做多止损计算
+ * @since 2.0.0
+ * @version 2.0.0 - 从返回 prev_order_pda/next_order_pda 改为返回 close_insert_indices
  */
 async function simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPrice = null, ordersData = null, borrowFee = 2000) {
     try {
@@ -28,6 +139,7 @@ async function simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPri
                 throw new Error('Failed to get current price');
             }
         }
+        console.log("simulateLongStopLoss lastPrice=",lastPrice)
 
         // Get ordersData
         if (!ordersData) {
@@ -37,6 +149,9 @@ async function simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPri
                 throw new Error('Failed to get orders data');
             }
         }
+
+        //console.log("ordersData=", JSONbig.stringify(ordersData, null, 2))
+        console.log("ordersData len=", ordersData.data.orders.length)
 
         // Calculate current price
         let currentPrice;
@@ -51,9 +166,11 @@ async function simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPri
             }
         }
 
+
         // Transform orders data
         const downOrders = transformOrdersData(ordersData);
-        //console.log(`Found ${downOrders.length} existing long orders`);
+        console.log(`downOrders Found ${downOrders.length} existing long orders`);
+        //console.log("downOrders downOrders=",downOrders)
 
         // Initialize stop loss prices
         let stopLossStartPrice = BigInt(stopLossPrice);
@@ -63,21 +180,49 @@ async function simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPri
         let finalOverlapResult = null; // Record final overlap result
         let finalTradeAmount = 0n; // Record final trade amount
 
+        // 检查并调整止损价格以满足最小距离要求 (做多: 止损价必须低于当前价至少 MIN_STOP_LOSS_PERCENT)
+        // Check and adjust stop loss price to meet minimum distance requirement (long: stop loss must be below current price by at least MIN_STOP_LOSS_PERCENT)
+        const minAllowedStopLoss = currentPrice - (currentPrice * BigInt(MIN_STOP_LOSS_PERCENT)) / 1000n;
+        if (stopLossStartPrice > minAllowedStopLoss) {
+            const originalStopLoss = stopLossStartPrice;
+            stopLossStartPrice = minAllowedStopLoss;
+            const originalPercent = Number((currentPrice - originalStopLoss) * 1000n / currentPrice) / 10;
+            const adjustedPercent = Number((currentPrice - stopLossStartPrice) * 1000n / currentPrice) / 10;
+            console.log(`止损价格自动调整以满足最小距离要求:`);
+            console.log(`  原始止损距离: ${originalPercent.toFixed(2)}%`);
+            console.log(`  调整后距离: ${adjustedPercent.toFixed(2)}% (最小要求: ${Number(MIN_STOP_LOSS_PERCENT) / 10}%)`);
+            console.log(`  原始止损价: ${originalStopLoss}`);
+            console.log(`  调整后止损价: ${stopLossStartPrice}`);
+        }
+
         //console.log(`Start price: ${stopLossStartPrice}, Target token amount: ${buyTokenAmount}`);
 
         // Loop to adjust stop loss price until no overlap
         while (iteration < maxIterations) {
             iteration++;
 
-            // Calculate stop loss end price
-            //console.log('Current stop loss start price:', stopLossStartPrice.toString());
+            // // Calculate stop loss end price
+            // console.log(`[Long Stop Loss Debug] Iteration ${iteration}:`);
+            // console.log(`  - stopLossStartPrice: ${stopLossStartPrice.toString()}`);
+            // console.log(`  - buyTokenAmount: ${buyTokenAmount.toString()}`);
+            // console.log(`  - Calling CurveAMM.sellFromPriceWithTokenInput...`);
+
             const tradeResult = CurveAMM.sellFromPriceWithTokenInput(stopLossStartPrice, buyTokenAmount);
+
+            //console.log(`  - tradeResult:`, tradeResult);
+
             if (!tradeResult) {
+                console.error(`[Long Stop Loss Error] Failed at iteration ${iteration}`);
+                console.error(`  - stopLossStartPrice: ${stopLossStartPrice.toString()}`);
+                console.error(`  - buyTokenAmount: ${buyTokenAmount.toString()}`);
                 throw new Error('Failed to calculate stop loss end price');
             }
 
             stopLossEndPrice = tradeResult[0]; // Price after trade completion
             const tradeAmount = tradeResult[1]; // SOL输出量 / SOL output amount
+
+            // console.log(`  - stopLossEndPrice: ${stopLossEndPrice.toString()}`);
+            // console.log(`  - tradeAmount: ${tradeAmount.toString()}`);
 
             //console.log(`迭代 ${iteration}: 起始价格=${stopLossStartPrice}, 结束价格=${stopLossEndPrice}, SOL输出量=${tradeAmount} / Iteration ${iteration}: Start=${stopLossStartPrice}, End=${stopLossEndPrice}, SOL output=${tradeAmount}`);
 
@@ -148,8 +293,7 @@ async function simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPri
         // console.log(`  SOL output amount: ${finalTradeAmount}`);
         // console.log(`  Stop loss percentage: ${stopLossPercentage}%`);
         // console.log(`  Leverage: ${leverage}x`);
-        // console.log(`  Previous order PDA: ${finalOverlapResult.prev_order_pda}`);
-        // console.log(`  Next order PDA: ${finalOverlapResult.next_order_pda}`);
+        // console.log(`  Close insert indices: ${finalOverlapResult.close_insert_indices}`);
 
         return {
             executableStopLossPrice: executableStopLossPrice, // Calculated reasonable stop loss value
@@ -159,8 +303,7 @@ async function simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPri
             currentPrice: currentPrice, // Current price
             iterations: iteration, // Number of adjustments
             originalStopLossPrice: BigInt(stopLossPrice), // Original stop loss price
-            prev_order_pda: finalOverlapResult.prev_order_pda, // Previous order PDA
-            next_order_pda: finalOverlapResult.next_order_pda, // Next order PDA
+            close_insert_indices: finalOverlapResult.close_insert_indices, // Candidate insertion indices for closing order
             estimatedMargin: estimatedMargin // Estimated margin requirement in SOL (lamports)
         };
 
@@ -173,15 +316,125 @@ async function simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPri
 
 /**
  * Simulate short position stop loss calculation
- * @param {string} mint - Token address
- * @param {bigint|string|number} sellTokenAmount - Token amount to sell for short position (u64 format, precision 10^6)
- * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format)
- * @param {Object|null} lastPrice - Token info, default null
- * @param {Object|null} ordersData - Orders data, default null
- * @param {number} borrowFee - Borrow fee rate, default 2000 (2000/100000 = 0.02%)
- * @returns {Promise<Object>} Stop loss analysis result
+ *
+ * 模拟做空仓位的止损计算,返回可执行的止损价格和相关参数。
+ * 该函数会自动调整止损价格以避免与现有订单的价格区间重叠,
+ * 并返回合约执行时需要的插入位置索引数组。
+ *
+ * @param {string} mint - Token address / 代币地址
+ * @param {bigint|string|number} sellTokenAmount - Token amount to sell for short position (u64 format, precision 10^6) / 做空卖出的代币数量 (u64格式, 精度 10^6)
+ * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format) / 用户期望的止损价格 (u128格式)
+ * @param {Object|null} lastPrice - Token info, default null / 代币当前价格信息,默认null会自动获取
+ * @param {Object|null} ordersData - Orders data, default null / 订单数据,默认null会自动获取
+ * @param {number} borrowFee - Borrow fee rate, default 2000 (2000/100000 = 0.02%) / 借贷手续费率,默认2000 (2000/100000 = 0.02%)
+ *
+ * @returns {Promise<Object>} Stop loss analysis result / 止损分析结果对象
+ * @returns {bigint} returns.executableStopLossPrice - 计算出的可执行止损价格 (u128格式)
+ *   - 这是经过调整后不与现有订单重叠的止损价格
+ *   - 可能高于用户输入的 stopLossPrice (因为需要避免重叠)
+ *   - 可以直接用于调用 sdk.trading.short() 的 closePrice 参数
+ *
+ * @returns {bigint} returns.tradeAmount - 止损时预计买入需要的SOL数量 (lamports)
+ *   - 这是在 executableStopLossPrice 价格买回 sellTokenAmount 代币需要的SOL
+ *   - 不包含手续费
+ *   - 用于估算止损时的成本
+ *
+ * @returns {number} returns.stopLossPercentage - 止损百分比 (相对于当前价格)
+ *   - 计算公式: ((executableStopLossPrice - currentPrice) / currentPrice) * 100
+ *   - 例如: 3.5 表示止损价格比当前价格高3.5%
+ *   - 做空时这个值应该是正数 (止损价高于当前价)
+ *
+ * @returns {number} returns.leverage - 杠杆倍数
+ *   - 计算公式: currentPrice / (executableStopLossPrice - currentPrice)
+ *   - 例如: 28.57 表示约28.57倍杠杆
+ *   - 杠杆越高,风险越大,但潜在收益也越大
+ *
+ * @returns {bigint} returns.currentPrice - 当前价格 (u128格式)
+ *   - 计算时使用的代币当前价格
+ *   - 用于参考和验证
+ *
+ * @returns {number} returns.iterations - 价格调整迭代次数
+ *   - 为了避免价格区间重叠,函数自动调整止损价格的次数
+ *   - 每次调整会将价格提高 PRICE_ADJUSTMENT_PERCENTAGE (默认0.5%)
+ *   - 如果迭代次数过高,可能需要重新选择止损价格
+ *
+ * @returns {bigint} returns.originalStopLossPrice - 用户输入的原始止损价格 (u128格式)
+ *   - 用于对比调整前后的价格差异
+ *   - 如果 executableStopLossPrice 与此差异较大,说明现有订单较密集
+ *
+ * @returns {number[]} returns.close_insert_indices - 平仓订单插入位置的候选索引数组 ⭐ 新增
+ *   - 数组包含多个候选插入位置的 OrderBook 索引值
+ *   - 结构: [主位置index, 前1个index, 后1个index, 前2个index, 后2个index, 前3个index, 后3个index]
+ *   - 例如: [25, 10, 33, 5, 40, 2, 50] 表示主位置是索引25,备选位置包括索引10、33等
+ *   - 最多包含7个索引值 (1个主位置 + 前3个 + 后3个)
+ *   - 如果订单簿为空,返回 [65535] (u16::MAX,表示插入到头部)
+ *   - 用途: 传递给 sdk.trading.short() 的 closeInsertIndices 参数
+ *   - 提高成功率: 即使主位置的订单被删除,合约也能尝试其他候选位置
+ *
+ * @returns {bigint} returns.estimatedMargin - 预估所需保证金 (SOL lamports)
+ *   - 计算公式: 平仓成本(含手续费) - 开仓收益 - 开仓手续费
+ *   - 这是执行此止损策略需要的最少保证金
+ *   - 可以用于 sdk.trading.short() 的 marginSolMax 参数
+ *   - 实际调用时建议增加10-20%余量以应对价格波动
+ *
+ * @throws {Error} 当缺少必需参数时
+ * @throws {Error} 当无法获取价格或订单数据时
+ * @throws {Error} 当达到最大迭代次数仍无法找到合适的止损价格时
+ * @throws {Error} 当价格调整后超过最大值时
+ *
+ * @example
+ * // 基础用法: 做空1个代币,止损价格为当前价格的103%
+ * const result = await sdk.simulator.simulateShortStopLoss(
+ *   '4Kq51Kt48FCwdo5CeKjRVPodH1ticHa7mZ5n5gqMEy1X',  // mint
+ *   1000000n,                                          // 1 token (精度10^6)
+ *   BigInt('103000000000000000000')                    // 止损价格
+ * );
+ *
+ * console.log(`可执行止损价格: ${result.executableStopLossPrice}`);
+ * console.log(`止损百分比: ${result.stopLossPercentage}%`);
+ * console.log(`杠杆倍数: ${result.leverage}x`);
+ * console.log(`预估保证金: ${result.estimatedMargin} lamports`);
+ * console.log(`插入位置索引: ${result.close_insert_indices}`);
+ *
+ * @example
+ * // 完整使用流程: 模拟后执行做空交易
+ * async function openShortPosition(sdk, mint, sellTokenAmount, stopLossPrice) {
+ *   // 1. 模拟止损计算
+ *   const simulation = await sdk.simulator.simulateShortStopLoss(
+ *     mint,
+ *     sellTokenAmount,
+ *     stopLossPrice
+ *   );
+ *
+ *   // 2. 检查止损价格是否被大幅调整
+ *   const priceDiff = Number((simulation.executableStopLossPrice - simulation.originalStopLossPrice) * 10000n / simulation.originalStopLossPrice) / 100;
+ *   if (priceDiff > 1.0) {
+ *     console.warn(`止损价格被调整了 ${priceDiff}%, 当前订单较密集`);
+ *   }
+ *
+ *   // 3. 准备交易参数
+ *   const minSolOutput = simulation.tradeAmount * 80n / 100n; // 至少获得80%
+ *   const marginSolMax = simulation.estimatedMargin * 115n / 100n; // 增加15%余量
+ *
+ *   // 4. 执行做空交易
+ *   const tx = await sdk.trading.short({
+ *     mint: mint,
+ *     borrowSellTokenAmount: sellTokenAmount,
+ *     minSolOutput: minSolOutput,
+ *     marginSolMax: marginSolMax,
+ *     closePrice: simulation.executableStopLossPrice,
+ *     closeInsertIndices: simulation.close_insert_indices  // ⭐ 使用新的索引数组
+ *   });
+ *
+ *   return tx;
+ * }
+ *
+ * @see {@link simulateLongStopLoss} 做多仓位的止损计算
+ * @see {@link simulateShortSolStopLoss} 基于SOL金额的做空止损计算
+ * @since 2.0.0
+ * @version 2.0.0 - 从返回 prev_order_pda/next_order_pda 改为返回 close_insert_indices
  */
-async function simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPrice = null, ordersData = null, borrowFee = 2000) {
+async function simulateShortStopLoss(mint, sellTokenAmount, stopLossPrice, lastPrice = null, ordersData = null, borrowFee = 2000) {
     try {
         // Parameter validation
         if (!mint || !sellTokenAmount || !stopLossPrice) {
@@ -206,6 +459,9 @@ async function simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPr
             }
         }
 
+        //console.log("ordersData=", JSONbig.stringify(ordersData, null, 2))
+        console.log("ordersData len=", ordersData.data.orders.length)
+
         // Calculate current price
         let currentPrice;
         if (lastPrice === null || lastPrice === undefined || lastPrice === '0') {
@@ -221,7 +477,7 @@ async function simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPr
 
         // Transform orders data
         const upOrders = transformOrdersData(ordersData);
-        //console.log(`Found ${upOrders.length} existing short orders`);
+        console.log(`upOrders Found ${upOrders.length} existing short orders`);
 
         // Initialize stop loss prices
         let stopLossStartPrice = BigInt(stopLossPrice);
@@ -231,20 +487,49 @@ async function simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPr
         let finalOverlapResult = null; // Record final overlap result
         let finalTradeAmount = 0n; // Record final trade amount
 
+        // 检查并调整止损价格以满足最小距离要求 (做空: 止损价必须高于当前价至少 MIN_STOP_LOSS_PERCENT)
+        // Check and adjust stop loss price to meet minimum distance requirement (short: stop loss must be above current price by at least MIN_STOP_LOSS_PERCENT)
+        const minAllowedStopLoss = currentPrice + (currentPrice * BigInt(MIN_STOP_LOSS_PERCENT)) / 1000n;
+        if (stopLossStartPrice < minAllowedStopLoss) {
+            const originalStopLoss = stopLossStartPrice;
+            stopLossStartPrice = minAllowedStopLoss;
+            const originalPercent = Number((originalStopLoss - currentPrice) * 1000n / currentPrice) / 10;
+            const adjustedPercent = Number((stopLossStartPrice - currentPrice) * 1000n / currentPrice) / 10;
+            console.log(`止损价格自动调整以满足最小距离要求:`);
+            console.log(`  原始止损距离: ${originalPercent.toFixed(2)}%`);
+            console.log(`  调整后距离: ${adjustedPercent.toFixed(2)}% (最小要求: ${Number(MIN_STOP_LOSS_PERCENT) / 10}%)`);
+            console.log(`  原始止损价: ${originalStopLoss}`);
+            console.log(`  调整后止损价: ${stopLossStartPrice}`);
+        }
+
         //console.log(`Start price: ${stopLossStartPrice}, Target token amount: ${sellTokenAmount}`);
 
         // Loop to adjust stop loss price until no overlap
         while (iteration < maxIterations) {
             iteration++;
 
-            // Calculate stop loss end price
+            // // Calculate stop loss end price
+            // console.log(`[Sell Stop Loss Debug] Iteration ${iteration}:`);
+            // console.log(`  - stopLossStartPrice: ${stopLossStartPrice.toString()}`);
+            // console.log(`  - sellTokenAmount: ${sellTokenAmount.toString()}`);
+            // console.log(`  - Calling CurveAMM.buyFromPriceWithTokenOutput...`);
+
             const tradeResult = CurveAMM.buyFromPriceWithTokenOutput(stopLossStartPrice, sellTokenAmount);
+
+            //console.log(`  - tradeResult:`, tradeResult);
+
             if (!tradeResult) {
+                console.error(`[Sell Stop Loss Error] Failed at iteration ${iteration}`);
+                console.error(`  - stopLossStartPrice: ${stopLossStartPrice.toString()}`);
+                console.error(`  - sellTokenAmount: ${sellTokenAmount.toString()}`);
                 throw new Error('Failed to calculate stop loss end price');
             }
 
             stopLossEndPrice = tradeResult[0]; // Price after trade completion
             const tradeAmount = tradeResult[1]; // SOL输入量 / SOL input amount
+
+            // console.log(`  - stopLossEndPrice: ${stopLossEndPrice.toString()}`);
+            // console.log(`  - tradeAmount: ${tradeAmount.toString()}`);
 
             //console.log(`迭代 ${iteration}: 起始价格=${stopLossStartPrice}, 结束价格=${stopLossEndPrice}, SOL输入量=${tradeAmount} / Iteration ${iteration}: Start=${stopLossStartPrice}, End=${stopLossEndPrice}, SOL input=${tradeAmount}`);
 
@@ -318,8 +603,7 @@ async function simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPr
         // console.log(`  SOL input amount: ${finalTradeAmount}`);
         // console.log(`  Stop loss percentage: ${stopLossPercentage}%`);
         // console.log(`  Leverage: ${leverage}x`);
-        // console.log(`  Previous order PDA: ${finalOverlapResult.prev_order_pda}`);
-        // console.log(`  Next order PDA: ${finalOverlapResult.next_order_pda}`);
+        // console.log(`  Close insert indices: ${finalOverlapResult.close_insert_indices}`);
 
         return {
             executableStopLossPrice: executableStopLossPrice, // Calculated reasonable stop loss value
@@ -329,8 +613,7 @@ async function simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPr
             currentPrice: currentPrice, // Current price
             iterations: iteration, // Number of adjustments
             originalStopLossPrice: BigInt(stopLossPrice), // Original stop loss price
-            prev_order_pda: finalOverlapResult.prev_order_pda, // Previous order PDA
-            next_order_pda: finalOverlapResult.next_order_pda, // Next order PDA
+            close_insert_indices: finalOverlapResult.close_insert_indices, // Candidate insertion indices for closing order
             estimatedMargin: estimatedMargin // Estimated margin requirement in SOL (lamports)
         };
 
@@ -350,13 +633,55 @@ async function simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPr
 
 /**
  * Simulate long position stop loss calculation with SOL amount input
- * @param {string} mint - Token address
- * @param {bigint|string|number} buySolAmount - SOL amount to spend for long position (u64 format, lamports)
- * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format)
- * @param {Object|null} lastPrice - Token info, default null
- * @param {Object|null} ordersData - Orders data, default null
- * @param {number} borrowFee - Borrow fee rate, default 2000 (2000/100000 = 0.02%)
- * @returns {Promise<Object>} Stop loss analysis result (same as simulateLongStopLoss)
+ *
+ * 基于 SOL 金额的做多止损计算。该函数会自动计算出对应的代币数量,
+ * 使得保证金需求接近用户输入的 SOL 金额。
+ *
+ * @param {string} mint - Token address / 代币地址
+ * @param {bigint|string|number} buySolAmount - SOL amount to spend for long position (u64 format, lamports) / 做多投入的SOL金额 (u64格式, lamports)
+ * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format) / 用户期望的止损价格 (u128格式)
+ * @param {Object|null} lastPrice - Token info, default null / 代币当前价格信息,默认null会自动获取
+ * @param {Object|null} ordersData - Orders data, default null / 订单数据,默认null会自动获取
+ * @param {number} borrowFee - Borrow fee rate, default 2000 (2000/100000 = 0.02%) / 借贷手续费率,默认2000 (2000/100000 = 0.02%)
+ *
+ * @returns {Promise<Object>} Stop loss analysis result / 止损分析结果对象
+ * @returns {bigint} returns.executableStopLossPrice - 可执行止损价格 (u128格式) - 同 {@link simulateLongStopLoss}
+ * @returns {bigint} returns.tradeAmount - 止损时预计卖出获得的SOL数量 (lamports) - 同 {@link simulateLongStopLoss}
+ * @returns {number} returns.stopLossPercentage - 止损百分比 - 同 {@link simulateLongStopLoss}
+ * @returns {number} returns.leverage - 杠杆倍数 - 同 {@link simulateLongStopLoss}
+ * @returns {bigint} returns.currentPrice - 当前价格 (u128格式) - 同 {@link simulateLongStopLoss}
+ * @returns {number} returns.iterations - 价格调整迭代次数 - 同 {@link simulateLongStopLoss}
+ * @returns {bigint} returns.originalStopLossPrice - 原始止损价格 (u128格式) - 同 {@link simulateLongStopLoss}
+ * @returns {number[]} returns.close_insert_indices - 平仓订单插入位置的候选索引数组 ⭐ - 同 {@link simulateLongStopLoss}
+ * @returns {bigint} returns.estimatedMargin - 预估所需保证金 (SOL lamports) - 同 {@link simulateLongStopLoss}
+ * @returns {bigint} returns.buyTokenAmount - 计算出的买入代币数量 ⭐ 额外字段
+ *   - 这是根据 buySolAmount 反向计算出的代币数量
+ *   - 使得 estimatedMargin 接近 buySolAmount
+ *   - 可以直接用于 sdk.trading.long() 的 buyTokenAmount 参数
+ * @returns {number} returns.adjustmentIterations - 代币数量调整迭代次数 ⭐ 额外字段
+ *   - 二分查找算法调整代币数量的迭代次数
+ *   - 用于评估计算精度
+ *
+ * @throws {Error} 当缺少必需参数时
+ * @throws {Error} 当无法获取价格或订单数据时
+ * @throws {Error} 当无法计算代币数量时
+ *
+ * @example
+ * // 基础用法: 投入 0.1 SOL 做多,止损价格为当前价格的97%
+ * const result = await sdk.simulator.simulateLongSolStopLoss(
+ *   '4Kq51Kt48FCwdo5CeKjRVPodH1ticHa7mZ5n5gqMEy1X',  // mint
+ *   100000000n,                                        // 0.1 SOL (精度10^9)
+ *   BigInt('97000000000000000000')                     // 止损价格
+ * );
+ *
+ * console.log(`买入代币数量: ${result.buyTokenAmount}`);
+ * console.log(`预估保证金: ${result.estimatedMargin} lamports`);
+ * console.log(`插入位置索引: ${result.close_insert_indices}`);
+ *
+ * @see {@link simulateLongStopLoss} 基于代币数量的做多止损计算
+ * @see {@link simulateShortSolStopLoss} 基于SOL金额的做空止损计算
+ * @since 2.0.0
+ * @version 2.0.0 - 从返回 prev_order_pda/next_order_pda 改为返回 close_insert_indices
  */
 async function simulateLongSolStopLoss(mint, buySolAmount, stopLossPrice, lastPrice = null, ordersData = null, borrowFee = 2000) {
     try {
@@ -473,15 +798,57 @@ async function simulateLongSolStopLoss(mint, buySolAmount, stopLossPrice, lastPr
 
 /**
  * Simulate short position stop loss calculation with SOL amount input
- * @param {string} mint - Token address
- * @param {bigint|string|number} sellSolAmount - SOL amount needed for short position stop loss (u64 format, lamports)
- * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format)
- * @param {Object|null} lastPrice - Token info, default null
- * @param {Object|null} ordersData - Orders data, default null
- * @param {number} borrowFee - Borrow fee rate, default 2000 (2000/100000 = 0.02%)
- * @returns {Promise<Object>} Stop loss analysis result (same as simulateSellStopLoss)
+ *
+ * 基于 SOL 金额的做空止损计算。该函数会自动计算出对应的代币数量,
+ * 使得保证金需求接近用户输入的 SOL 金额。
+ *
+ * @param {string} mint - Token address / 代币地址
+ * @param {bigint|string|number} sellSolAmount - SOL amount needed for short position stop loss (u64 format, lamports) / 做空投入的SOL金额 (u64格式, lamports)
+ * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format) / 用户期望的止损价格 (u128格式)
+ * @param {Object|null} lastPrice - Token info, default null / 代币当前价格信息,默认null会自动获取
+ * @param {Object|null} ordersData - Orders data, default null / 订单数据,默认null会自动获取
+ * @param {number} borrowFee - Borrow fee rate, default 2000 (2000/100000 = 0.02%) / 借贷手续费率,默认2000 (2000/100000 = 0.02%)
+ *
+ * @returns {Promise<Object>} Stop loss analysis result / 止损分析结果对象
+ * @returns {bigint} returns.executableStopLossPrice - 可执行止损价格 (u128格式) - 同 {@link simulateShortStopLoss}
+ * @returns {bigint} returns.tradeAmount - 止损时预计买入需要的SOL数量 (lamports) - 同 {@link simulateShortStopLoss}
+ * @returns {number} returns.stopLossPercentage - 止损百分比 - 同 {@link simulateShortStopLoss}
+ * @returns {number} returns.leverage - 杠杆倍数 - 同 {@link simulateShortStopLoss}
+ * @returns {bigint} returns.currentPrice - 当前价格 (u128格式) - 同 {@link simulateShortStopLoss}
+ * @returns {number} returns.iterations - 价格调整迭代次数 - 同 {@link simulateShortStopLoss}
+ * @returns {bigint} returns.originalStopLossPrice - 原始止损价格 (u128格式) - 同 {@link simulateShortStopLoss}
+ * @returns {number[]} returns.close_insert_indices - 平仓订单插入位置的候选索引数组 ⭐ - 同 {@link simulateShortStopLoss}
+ * @returns {bigint} returns.estimatedMargin - 预估所需保证金 (SOL lamports) - 同 {@link simulateShortStopLoss}
+ * @returns {bigint} returns.sellTokenAmount - 计算出的卖出代币数量 ⭐ 额外字段
+ *   - 这是根据 sellSolAmount 反向计算出的代币数量
+ *   - 使得 estimatedMargin 接近 sellSolAmount
+ *   - 可以直接用于 sdk.trading.short() 的 borrowSellTokenAmount 参数
+ * @returns {number} returns.adjustmentIterations - 代币数量调整迭代次数 ⭐ 额外字段
+ *   - 二分查找算法调整代币数量的迭代次数
+ *   - 用于评估计算精度
+ *
+ * @throws {Error} 当缺少必需参数时
+ * @throws {Error} 当无法获取价格或订单数据时
+ * @throws {Error} 当无法计算代币数量时
+ *
+ * @example
+ * // 基础用法: 投入 0.1 SOL 做空,止损价格为当前价格的103%
+ * const result = await sdk.simulator.simulateShortSolStopLoss(
+ *   '4Kq51Kt48FCwdo5CeKjRVPodH1ticHa7mZ5n5gqMEy1X',  // mint
+ *   100000000n,                                        // 0.1 SOL (精度10^9)
+ *   BigInt('103000000000000000000')                    // 止损价格
+ * );
+ *
+ * console.log(`卖出代币数量: ${result.sellTokenAmount}`);
+ * console.log(`预估保证金: ${result.estimatedMargin} lamports`);
+ * console.log(`插入位置索引: ${result.close_insert_indices}`);
+ *
+ * @see {@link simulateShortStopLoss} 基于代币数量的做空止损计算
+ * @see {@link simulateLongSolStopLoss} 基于SOL金额的做多止损计算
+ * @since 2.0.0
+ * @version 2.0.0 - 从返回 prev_order_pda/next_order_pda 改为返回 close_insert_indices
  */
-async function simulateSellSolStopLoss(mint, sellSolAmount, stopLossPrice, lastPrice = null, ordersData = null, borrowFee = 2000) {
+async function simulateShortSolStopLoss(mint, sellSolAmount, stopLossPrice, lastPrice = null, ordersData = null, borrowFee = 2000) {
     try {
         // Parameter validation
         if (!mint || !sellSolAmount || !stopLossPrice) {
@@ -496,6 +863,8 @@ async function simulateSellSolStopLoss(mint, sellSolAmount, stopLossPrice, lastP
                 throw new Error('Failed to get current price');
             }
         }
+
+        console.log("simulateShortSolStopLoss lastPrice=",lastPrice)
 
         // Calculate current price
         if (lastPrice === null || lastPrice === undefined || lastPrice === '0') {
@@ -532,7 +901,7 @@ async function simulateSellSolStopLoss(mint, sellSolAmount, stopLossPrice, lastP
             const mid = (left + right) / 2n;
             
             // 计算当前 token 数量的结果
-            const currentResult = await simulateSellStopLoss.call(this, mint, mid, stopLossPrice, lastPrice, ordersData, borrowFee);
+            const currentResult = await simulateShortStopLoss.call(this, mint, mid, stopLossPrice, lastPrice, ordersData, borrowFee);
             const currentMargin = currentResult.estimatedMargin;
             
             //console.log(`Binary search iteration ${iterations}: tokenAmount=${mid}, estimatedMargin=${currentMargin}, target=${sellSolAmount}`);
@@ -574,11 +943,11 @@ async function simulateSellSolStopLoss(mint, sellSolAmount, stopLossPrice, lastP
             //console.log(`No valid solution found (estimatedMargin < sellSolAmount), using minimal tokenAmount`);
             sellTokenAmount = sellTokenAmount / 10n; // 使用更小的值
             if (sellTokenAmount <= 0n) sellTokenAmount = 1000000n; // 最小值保护
-            stopLossResult = await simulateSellStopLoss.call(this, mint, sellTokenAmount, stopLossPrice, lastPrice, ordersData, borrowFee);
+            stopLossResult = await simulateShortStopLoss.call(this, mint, sellTokenAmount, stopLossPrice, lastPrice, ordersData, borrowFee);
         }
 
         // if (iterations >= maxIterations) {
-        //     //console.warn(`simulateSellSolStopLoss: Reached maximum iterations (${maxIterations}), tradeAmount=${stopLossResult.tradeAmount}, target=${sellSolAmount}`);
+        //     //console.warn(`simulateShortSolStopLoss: Reached maximum iterations (${maxIterations}), tradeAmount=${stopLossResult.tradeAmount}, target=${sellSolAmount}`);
         // }
         
         // Add sellTokenAmount and iteration info to the result
@@ -596,7 +965,7 @@ async function simulateSellSolStopLoss(mint, sellSolAmount, stopLossPrice, lastP
 
 module.exports = {
     simulateLongStopLoss,
-    simulateSellStopLoss,
+    simulateShortStopLoss,
     simulateLongSolStopLoss,
-    simulateSellSolStopLoss
+    simulateShortSolStopLoss
 };

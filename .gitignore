@@ -31,11 +31,11 @@ Thumbs.db
 .env.test.local
 .env.production.local 
 
+
 notes/
 /CLAUDE.md
 .claude
 other_code/
 test-tools/
-tests/
-test_bot/
 dist/
+tests/

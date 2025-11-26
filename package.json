@@ -1,18 +1,18 @@
 {
-  "name": "spin-sdk",
-  "version": "0.1.53",
-  "description": "Solana Anchor 合约的 SDK",
-  "main": "dist/spin-sdk.cjs.js",
-  "module": "dist/spin-sdk.esm.js",
-  "browser": "dist/spin-sdk.js",
+  "name": "pinpet-sdk",
+  "version": "0.1.2",
+  "description": "Solana PinPet.fun SDK",
+  "main": "dist/pinpet-sdk.cjs.js",
+  "module": "dist/pinpet-sdk.esm.js",
+  "browser": "dist/pinpet-sdk.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": "./dist/spin-sdk.js",
-      "import": "./dist/spin-sdk.esm.js",
-      "require": "./dist/spin-sdk.cjs.js",
-      "default": "./dist/spin-sdk.esm.js"
+      "browser": "./dist/pinpet-sdk.js",
+      "import": "./dist/pinpet-sdk.esm.js",
+      "require": "./dist/pinpet-sdk.cjs.js",
+      "default": "./dist/pinpet-sdk.esm.js"
     }
   },
   "sideEffects": false,
@@ -42,6 +42,7 @@
     "buffer": "^6.0.3",
     "decimal.js": "^10.6.0",
     "isomorphic-fetch": "^3.0.0",
+    "json-bigint": "^1.0.0",
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
@@ -51,11 +52,11 @@
     "@rollup/plugin-replace": "^5.0.5",
     "@rollup/plugin-terser": "^0.4.4",
     "eslint": "^9.0.0",
-    "rollup": "^2.79.1",
-    "rollup-plugin-polyfill-node": "^0.13.0",
     "glob": "^10.3.10",
     "mocha": "^10.2.0",
-    "rimraf": "^5.0.5"
+    "rimraf": "^5.0.5",
+    "rollup": "^2.79.1",
+    "rollup-plugin-polyfill-node": "^0.13.0"
   },
   "engines": {
     "node": ">=14.0.0"

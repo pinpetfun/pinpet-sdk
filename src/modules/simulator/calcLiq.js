@@ -471,7 +471,14 @@ function calcLiqTokenSell(price, sellTokenAmount, orders, onceMaxOrder, passOrde
 
   // orders 长度为0 时要单独计算
   if (orders.length === 0) {
-    [result.free_lp_token_amount_sum, result.free_lp_sol_amount_sum] = CurveAMM.sellFromPriceToPrice(BigInt(price), CurveAMM.MIN_U128_PRICE);
+    const sellResult = CurveAMM.sellFromPriceToPrice(BigInt(price), CurveAMM.MIN_U128_PRICE);
+    if (sellResult) {
+      [result.free_lp_token_amount_sum, result.free_lp_sol_amount_sum] = sellResult;
+    } else {
+      // 如果当前价格已经低于最小价格，无法再卖出
+      result.free_lp_token_amount_sum = 0n;
+      result.free_lp_sol_amount_sum = 0n;
+    }
     result.has_infinite_lp = true;
     result.real_lp_sol_amount = result.ideal_lp_sol_amount
     return result

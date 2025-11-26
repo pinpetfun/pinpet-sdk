@@ -8,16 +8,22 @@
   },
   "instructions": [
     {
-      "name": "buy",
+      "name": "approve_trade",
+      "docs": [
+        "批准当前token余额用于交易",
+        "用于以下场景:",
+        "1. 从其他地址转入token后想要立即交易",
+        "2. 重新激活冷却PDA"
+      ],
       "discriminator": [
-        102,
-        6,
-        61,
-        18,
-        1,
-        218,
-        235,
-        234
+        7,
+        254,
+        199,
+        234,
+        17,
+        251,
+        210,
+        183
       ],
       "accounts": [
         {
@@ -104,6 +110,66 @@
                   115,
                   111,
                   108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "up_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  112,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "down_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
+                  110,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
                 ]
               },
               {
@@ -228,62 +294,368 @@
           "writable": true
         },
         {
-          "name": "order0",
+          "name": "cooldown",
+          "docs": [
+            "交易冷却时间PDA",
+            "首次交易时自动创建，后续交易验证冷却时间"
+          ],
           "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order1",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order2",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order3",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order4",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order5",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order6",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order7",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order8",
-          "writable": true,
-          "optional": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  99,
+                  111,
+                  111,
+                  108,
+                  100,
+                  111,
+                  119,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          }
         }
       ],
-      "args": [
+      "args": []
+    },
+    {
+      "name": "buy",
+      "discriminator": [
+        102,
+        6,
+        61,
+        18,
+        1,
+        218,
+        235,
+        234
+      ],
+      "accounts": [
         {
-          "name": "lp_pairs",
-          "type": {
-            "vec": {
-              "defined": {
-                "name": "LpPair"
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint_account",
+          "writable": true
+        },
+        {
+          "name": "curve_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  114,
+                  114,
+                  111,
+                  119,
+                  105,
+                  110,
+                  103,
+                  95,
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
               }
+            ]
+          }
+        },
+        {
+          "name": "pool_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_sol_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "up_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  112,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "down_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
+                  110,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "payer"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
             }
           }
         },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "fee_recipient_account",
+          "writable": true
+        },
+        {
+          "name": "base_fee_recipient_account",
+          "writable": true
+        },
+        {
+          "name": "cooldown",
+          "docs": [
+            "交易冷却时间PDA",
+            "首次交易时自动创建，后续交易验证冷却时间"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  99,
+                  111,
+                  111,
+                  108,
+                  100,
+                  111,
+                  119,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
         {
           "name": "buy_token_amount",
           "type": "u64"
@@ -425,77 +797,67 @@
           "writable": true
         },
         {
-          "name": "prev_order",
+          "name": "up_orderbook",
           "writable": true,
-          "optional": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  112,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
         },
         {
-          "name": "close_order",
+          "name": "down_orderbook",
           "writable": true,
-          "optional": true
-        },
-        {
-          "name": "next_order",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order0",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order1",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order2",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order3",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order4",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order5",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order6",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order7",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order8",
-          "writable": true,
-          "optional": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
+                  110,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
         }
       ],
       "args": [
-        {
-          "name": "lp_pairs",
-          "type": {
-            "vec": {
-              "defined": {
-                "name": "LpPair"
-              }
-            }
-          }
-        },
         {
           "name": "sell_token_amount",
           "type": "u64"
@@ -505,20 +867,14 @@
           "type": "u64"
         },
         {
-          "name": "prev_order_id",
-          "type": "u8"
-        },
-        {
           "name": "close_order_id",
-          "type": "u8"
+          "type": "u64"
         },
         {
-          "name": "next_order_id",
-          "type": "u8"
-        },
-        {
-          "name": "close_order_address",
-          "type": "string"
+          "name": "close_order_indices",
+          "type": {
+            "vec": "u16"
+          }
         }
       ]
     },
@@ -653,77 +1009,67 @@
           "writable": true
         },
         {
-          "name": "prev_order",
+          "name": "up_orderbook",
           "writable": true,
-          "optional": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  112,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
         },
         {
-          "name": "close_order",
+          "name": "down_orderbook",
           "writable": true,
-          "optional": true
-        },
-        {
-          "name": "next_order",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order0",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order1",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order2",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order3",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order4",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order5",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order6",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order7",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order8",
-          "writable": true,
-          "optional": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
+                  110,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
         }
       ],
       "args": [
-        {
-          "name": "lp_pairs",
-          "type": {
-            "vec": {
-              "defined": {
-                "name": "LpPair"
-              }
-            }
-          }
-        },
         {
           "name": "buy_token_amount",
           "type": "u64"
@@ -733,22 +1079,203 @@
           "type": "u64"
         },
         {
-          "name": "prev_order_id",
-          "type": "u8"
-        },
-        {
           "name": "close_order_id",
-          "type": "u8"
+          "type": "u64"
         },
         {
-          "name": "next_order_id",
-          "type": "u8"
-        },
-        {
-          "name": "close_order_address",
-          "type": "string"
+          "name": "close_order_indices",
+          "type": {
+            "vec": "u16"
+          }
         }
       ]
+    },
+    {
+      "name": "close_trade_cooldown",
+      "docs": [
+        "手动关闭TradeCooldown PDA并回收租金",
+        "",
+        "使用条件:",
+        "1. 只能关闭自己的PDA(通过seeds验证)",
+        "",
+        "使用场景:",
+        "- 用户想要回收租金",
+        "- 清理不再使用的PDA",
+        "- 管理员批量清理过期PDA",
+        "",
+        "注意:",
+        "- 无需验证代币余额，关闭后可通过approve_trade重新创建",
+        "- PDA关闭后，下次buy或approve会自动重新创建"
+      ],
+      "discriminator": [
+        146,
+        202,
+        99,
+        141,
+        126,
+        217,
+        156,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "发起关闭请求的用户(必须是PDA的owner)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint_account",
+          "docs": [
+            "代币mint地址"
+          ]
+        },
+        {
+          "name": "user_token_account",
+          "docs": [
+            "用户的token账户(用于验证余额)"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "payer"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "cooldown",
+          "docs": [
+            "要关闭的TradeCooldown PDA"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  99,
+                  111,
+                  111,
+                  108,
+                  100,
+                  111,
+                  119,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "create",
@@ -848,6 +1375,66 @@
                   115,
                   111,
                   108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "up_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  112,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "down_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
+                  110,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
                 ]
               },
               {
@@ -960,6 +1547,212 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "create_token",
+      "discriminator": [
+        84,
+        52,
+        204,
+        228,
+        24,
+        140,
+        234,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mint_account",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "curve_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  114,
+                  114,
+                  111,
+                  119,
+                  105,
+                  110,
+                  103,
+                  95,
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  116,
+                  111,
+                  107,
+                  101,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_sol_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "up_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  112,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "down_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
+                  110,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "metadata",
+          "writable": true
+        },
+        {
+          "name": "metadata_program",
+          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+        },
+        {
+          "name": "params"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        }
+      ]
     },
     {
       "name": "initialize",
@@ -1103,118 +1896,67 @@
           "writable": true
         },
         {
-          "name": "prev_order",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "self_order",
+          "name": "up_orderbook",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  115,
-                  101,
-                  108,
-                  102,
+                  117,
+                  112,
                   95,
-                  109,
-                  97,
+                  111,
                   114,
-                  103,
-                  105,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "down_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
                   110,
                   95,
                   111,
                   114,
                   100,
                   101,
-                  114
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
                 ]
               },
               {
                 "kind": "account",
-                "path": "payer"
-              },
-              {
-                "kind": "account",
                 "path": "mint_account"
-              },
-              {
-                "kind": "arg",
-                "path": "unique_seed"
               }
             ]
           }
-        },
-        {
-          "name": "next_order",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order0",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order1",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order2",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order3",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order4",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order5",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order6",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order7",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order8",
-          "writable": true,
-          "optional": true
         }
       ],
       "args": [
-        {
-          "name": "unique_seed",
-          "type": "u64"
-        },
-        {
-          "name": "lp_pairs",
-          "type": {
-            "vec": {
-              "defined": {
-                "name": "LpPair"
-              }
-            }
-          }
-        },
         {
           "name": "buy_token_amount",
           "type": "u64"
@@ -1230,6 +1972,12 @@
         {
           "name": "close_price",
           "type": "u128"
+        },
+        {
+          "name": "close_insert_indices",
+          "type": {
+            "vec": "u16"
+          }
         }
       ]
     },
@@ -1330,6 +2078,66 @@
                   115,
                   111,
                   108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "up_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  112,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "down_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
+                  110,
+                  95,
+                  111,
+                  114,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
                 ]
               },
               {
@@ -1454,62 +2262,46 @@
           "writable": true
         },
         {
-          "name": "order0",
+          "name": "cooldown",
+          "docs": [
+            "交易冷却时间PDA",
+            "首次交易时自动创建，后续交易验证冷却时间"
+          ],
           "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order1",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order2",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order3",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order4",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order5",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order6",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order7",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order8",
-          "writable": true,
-          "optional": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  114,
+                  97,
+                  100,
+                  101,
+                  95,
+                  99,
+                  111,
+                  111,
+                  108,
+                  100,
+                  111,
+                  119,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          }
         }
       ],
       "args": [
-        {
-          "name": "lp_pairs",
-          "type": {
-            "vec": {
-              "defined": {
-                "name": "LpPair"
-              }
-            }
-          }
-        },
         {
           "name": "sell_token_amount",
           "type": "u64"
@@ -1647,118 +2439,67 @@
           "writable": true
         },
         {
-          "name": "prev_order",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "self_order",
+          "name": "up_orderbook",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  115,
-                  101,
-                  108,
-                  102,
+                  117,
+                  112,
                   95,
-                  109,
-                  97,
+                  111,
                   114,
-                  103,
-                  105,
+                  100,
+                  101,
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "down_orderbook",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  111,
+                  119,
                   110,
                   95,
                   111,
                   114,
                   100,
                   101,
-                  114
+                  114,
+                  98,
+                  111,
+                  111,
+                  107
                 ]
               },
               {
                 "kind": "account",
-                "path": "payer"
-              },
-              {
-                "kind": "account",
                 "path": "mint_account"
-              },
-              {
-                "kind": "arg",
-                "path": "unique_seed"
               }
             ]
           }
-        },
-        {
-          "name": "next_order",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order0",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order1",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order2",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order3",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order4",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order5",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order6",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order7",
-          "writable": true,
-          "optional": true
-        },
-        {
-          "name": "order8",
-          "writable": true,
-          "optional": true
         }
       ],
       "args": [
-        {
-          "name": "unique_seed",
-          "type": "u64"
-        },
-        {
-          "name": "lp_pairs",
-          "type": {
-            "vec": {
-              "defined": {
-                "name": "LpPair"
-              }
-            }
-          }
-        },
         {
           "name": "borrow_sell_token_amount",
           "type": "u64"
@@ -1774,6 +2515,12 @@
         {
           "name": "close_price",
           "type": "u128"
+        },
+        {
+          "name": "close_insert_indices",
+          "type": {
+            "vec": "u16"
+          }
         }
       ]
     },
@@ -1986,16 +2733,16 @@
       ]
     },
     {
-      "name": "MarginOrder",
+      "name": "OrderBook",
       "discriminator": [
-        174,
-        240,
-        236,
-        75,
-        165,
-        202,
-        223,
-        242
+        55,
+        230,
+        125,
+        218,
+        149,
+        39,
+        65,
+        248
       ]
     },
     {
@@ -2009,6 +2756,19 @@
         198,
         9,
         242
+      ]
+    },
+    {
+      "name": "TradeCooldown",
+      "discriminator": [
+        141,
+        81,
+        181,
+        74,
+        135,
+        233,
+        178,
+        180
       ]
     }
   ],
@@ -2024,19 +2784,6 @@
         32,
         19,
         180
-      ]
-    },
-    {
-      "name": "ForceLiquidateEvent",
-      "discriminator": [
-        234,
-        196,
-        183,
-        105,
-        40,
-        26,
-        206,
-        48
       ]
     },
     {
@@ -2108,778 +2855,488 @@
   "errors": [
     {
       "code": 6000,
-      "name": "EmptySupply",
-      "msg": "流动性池中的代币供应为空"
-    },
-    {
-      "code": 6001,
       "name": "ArithmeticOverflow",
       "msg": "计算溢出错误"
     },
     {
-      "code": 6002,
+      "code": 6001,
       "name": "BuyCalculationOverflow",
       "msg": "买入交易计算溢出"
     },
     {
-      "code": 6003,
+      "code": 6002,
       "name": "BuyFeeCalculationOverflow",
       "msg": "买入手续费计算溢出"
     },
     {
-      "code": 6004,
-      "name": "BuyTokenAccumulationOverflow",
-      "msg": "买入代币累加溢出"
-    },
-    {
-      "code": 6005,
-      "name": "BuyStopLossCalculationOverflow",
-      "msg": "买入止损计算溢出"
-    },
-    {
-      "code": 6006,
+      "code": 6003,
       "name": "SellCalculationOverflow",
       "msg": "卖出交易计算溢出"
     },
     {
-      "code": 6007,
+      "code": 6004,
       "name": "SellFeeCalculationOverflow",
       "msg": "卖出手续费计算溢出"
     },
     {
-      "code": 6008,
-      "name": "SellTokenAccumulationOverflow",
-      "msg": "卖出代币累加溢出"
-    },
-    {
-      "code": 6009,
-      "name": "SellStopLossCalculationOverflow",
-      "msg": "卖出止损计算溢出"
-    },
-    {
-      "code": 6010,
+      "code": 6005,
       "name": "LongMarginCalculationOverflow",
       "msg": "做多保证金计算溢出"
     },
     {
-      "code": 6011,
+      "code": 6006,
       "name": "LongBorrowCalculationOverflow",
       "msg": "做多借款计算溢出"
     },
     {
-      "code": 6012,
-      "name": "LongProfitCalculationOverflow",
-      "msg": "做多利润计算溢出"
-    },
-    {
-      "code": 6013,
-      "name": "LongRepaymentCalculationOverflow",
-      "msg": "做多还款计算溢出"
-    },
-    {
-      "code": 6014,
+      "code": 6007,
       "name": "LongFeeCalculationOverflow",
       "msg": "做多手续费计算溢出"
     },
     {
-      "code": 6015,
+      "code": 6008,
       "name": "LongPriceCalculationOverflow",
       "msg": "做多价格计算溢出"
     },
     {
-      "code": 6016,
+      "code": 6009,
       "name": "ShortMarginCalculationOverflow",
       "msg": "做空保证金计算溢出"
     },
     {
-      "code": 6017,
+      "code": 6010,
       "name": "ShortBorrowCalculationOverflow",
       "msg": "做空借款计算溢出"
     },
     {
-      "code": 6018,
-      "name": "ShortProfitCalculationOverflow",
-      "msg": "做空利润计算溢出"
-    },
-    {
-      "code": 6019,
-      "name": "ShortRepaymentCalculationOverflow",
-      "msg": "做空还款计算溢出"
-    },
-    {
-      "code": 6020,
+      "code": 6011,
       "name": "ShortFeeCalculationOverflow",
       "msg": "做空手续费计算溢出"
     },
     {
-      "code": 6021,
+      "code": 6012,
       "name": "ShortPriceCalculationOverflow",
       "msg": "做空价格计算溢出"
     },
     {
-      "code": 6022,
+      "code": 6013,
       "name": "CloseLongProfitOverflow",
       "msg": "平多仓利润计算溢出"
     },
     {
-      "code": 6023,
+      "code": 6014,
       "name": "CloseLongRepaymentOverflow",
       "msg": "平多仓还款计算溢出"
     },
     {
-      "code": 6024,
+      "code": 6015,
       "name": "CloseLongRemainingOverflow",
       "msg": "平多仓剩余计算溢出"
     },
     {
-      "code": 6025,
+      "code": 6016,
       "name": "CloseLongFeeOverflow",
       "msg": "平多仓手续费溢出"
     },
     {
-      "code": 6026,
+      "code": 6017,
       "name": "CloseShortProfitOverflow",
       "msg": "平空仓利润计算溢出"
     },
     {
-      "code": 6027,
+      "code": 6018,
       "name": "CloseShortRepaymentOverflow",
       "msg": "平空仓还款计算溢出"
     },
     {
-      "code": 6028,
+      "code": 6019,
       "name": "CloseShortRemainingOverflow",
       "msg": "平空仓剩余计算溢出"
     },
     {
-      "code": 6029,
+      "code": 6020,
       "name": "CloseShortFeeOverflow",
       "msg": "平空仓手续费溢出"
     },
     {
-      "code": 6030,
-      "name": "PartialCloseCalculationOverflow",
-      "msg": "部分平仓计算溢出"
-    },
-    {
-      "code": 6031,
-      "name": "PartialCloseAssetOverflow",
-      "msg": "部分平仓资产计算溢出"
-    },
-    {
-      "code": 6032,
-      "name": "FeeCalculationOverflow",
-      "msg": "手续费计算溢出"
-    },
-    {
-      "code": 6033,
+      "code": 6021,
       "name": "FeeSplitCalculationOverflow",
       "msg": "手续费分配计算溢出"
     },
     {
-      "code": 6034,
-      "name": "FeeDiscountCalculationOverflow",
-      "msg": "手续费折扣计算溢出"
-    },
-    {
-      "code": 6035,
+      "code": 6022,
       "name": "FeeAccumulationOverflow",
       "msg": "手续费累加溢出"
     },
     {
-      "code": 6036,
+      "code": 6023,
       "name": "PartnerFeeAdditionOverflow",
       "msg": "合作伙伴手续费增加溢出"
     },
     {
-      "code": 6037,
+      "code": 6024,
       "name": "BaseFeeAdditionOverflow",
       "msg": "基础手续费增加溢出"
     },
     {
-      "code": 6038,
+      "code": 6025,
       "name": "PoolFeeDeductionOverflow",
       "msg": "资金池手续费扣除溢出"
     },
     {
-      "code": 6039,
+      "code": 6026,
       "name": "FeeRandomDiscountOverflow",
       "msg": "手续费随机优惠计算溢出"
     },
     {
-      "code": 6040,
+      "code": 6027,
       "name": "SolReserveAdditionOverflow",
       "msg": "SOL储备增加溢出"
     },
     {
-      "code": 6041,
+      "code": 6028,
       "name": "SolReserveDeductionOverflow",
       "msg": "SOL储备扣除溢出"
     },
     {
-      "code": 6042,
+      "code": 6029,
       "name": "TokenReserveAdditionOverflow",
       "msg": "代币储备增加溢出"
     },
     {
-      "code": 6043,
-      "name": "TokenReserveDeductionOverflow",
-      "msg": "代币储备扣除溢出"
-    },
-    {
-      "code": 6044,
-      "name": "LiquidityReservationOverflow",
-      "msg": "流动性预留计算溢出"
-    },
-    {
-      "code": 6045,
-      "name": "PriceRangeCalculationOverflow",
-      "msg": "价格区间计算溢出"
-    },
-    {
-      "code": 6046,
+      "code": 6030,
       "name": "LamportsAdditionOverflow",
       "msg": "Lamports增加溢出"
     },
     {
-      "code": 6047,
+      "code": 6031,
       "name": "LamportsDeductionOverflow",
       "msg": "Lamports扣除溢出"
     },
     {
-      "code": 6048,
-      "name": "TransferCalculationOverflow",
-      "msg": "转账计算溢出"
-    },
-    {
-      "code": 6049,
-      "name": "PdaRentRecoveryOverflow",
-      "msg": "PDA租金回收溢出"
-    },
-    {
-      "code": 6050,
-      "name": "TimestampCalculationOverflow",
-      "msg": "时间戳计算溢出"
-    },
-    {
-      "code": 6051,
+      "code": 6032,
       "name": "DeadlineCalculationOverflow",
       "msg": "到期时间计算溢出"
     },
     {
-      "code": 6052,
-      "name": "CounterIncrementOverflow",
-      "msg": "计数器增加溢出"
-    },
-    {
-      "code": 6053,
+      "code": 6033,
       "name": "FeeDiscountFlagOverflow",
       "msg": "手续费优惠标志计算溢出"
     },
     {
-      "code": 6054,
-      "name": "InvalidInput",
-      "msg": "提供的数值无效"
-    },
-    {
-      "code": 6055,
-      "name": "InvalidFee",
-      "msg": "费率超出允许范围"
-    },
-    {
-      "code": 6056,
-      "name": "EmptyRecipientsList",
-      "msg": "接收者列表不能为空"
-    },
-    {
-      "code": 6057,
-      "name": "InsufficientFunds",
-      "msg": "发送者余额不足"
-    },
-    {
-      "code": 6058,
-      "name": "InvalidLinkedListOperation",
-      "msg": "链表操作无效"
-    },
-    {
-      "code": 6059,
-      "name": "InvalidPriceRange",
-      "msg": "订单价格区间无效"
-    },
-    {
-      "code": 6060,
+      "code": 6034,
       "name": "Unauthorized",
       "msg": "未授权的操作"
     },
     {
-      "code": 6061,
+      "code": 6035,
       "name": "RequiredParameter",
       "msg": "初始化时所有参数都是必需的"
     },
     {
-      "code": 6062,
-      "name": "LiquidityLocked",
-      "msg": "流动性锁定，无法插入订单"
-    },
-    {
-      "code": 6063,
-      "name": "InsufficientLiquidationValue",
-      "msg": "强制平仓后获得的SOL不足以偿还借款"
-    },
-    {
-      "code": 6064,
-      "name": "PriceSpanTooSmall",
-      "msg": "价格区间太小"
-    },
-    {
-      "code": 6065,
+      "code": 6036,
       "name": "CurveCalculationError",
       "msg": "曲线计算错误"
     },
     {
-      "code": 6066,
+      "code": 6037,
       "name": "InitialPriceCalculationError",
       "msg": "初始价格计算失败"
     },
     {
-      "code": 6067,
+      "code": 6038,
       "name": "BuyReserveRecalculationError",
       "msg": "储备量重算失败（买入后）"
     },
     {
-      "code": 6068,
+      "code": 6039,
       "name": "SellReserveRecalculationError",
       "msg": "储备量重算失败（卖出后）"
     },
     {
-      "code": 6069,
+      "code": 6040,
       "name": "TotalAmountWithFeeError",
       "msg": "含手续费总额计算失败"
     },
     {
-      "code": 6070,
+      "code": 6041,
       "name": "AmountAfterFeeError",
       "msg": "扣费后金额计算失败"
     },
     {
-      "code": 6071,
+      "code": 6042,
       "name": "BuyPriceRangeCalculationError",
       "msg": "买入价格区间计算失败"
     },
     {
-      "code": 6072,
+      "code": 6043,
       "name": "SellPriceRangeCalculationError",
       "msg": "卖出价格区间计算失败"
     },
     {
-      "code": 6073,
-      "name": "EmptyOrdersCalculationError",
-      "msg": "订单数组为空，无法计算"
-    },
-    {
-      "code": 6074,
-      "name": "FinalOrderEmptyError",
-      "msg": "最终订单索引对应订单为空"
-    },
-    {
-      "code": 6075,
+      "code": 6044,
       "name": "RemainingRangeCalculationError",
       "msg": "剩余区间交易计算失败"
     },
     {
-      "code": 6076,
+      "code": 6045,
       "name": "FullRangeCalculationError",
       "msg": "全区间交易计算失败"
     },
     {
-      "code": 6077,
-      "name": "OrderIndexOutOfBoundsCalculationError",
-      "msg": "订单索引越界"
-    },
-    {
-      "code": 6078,
+      "code": 6046,
       "name": "BuyFromPriceWithTokenNoneError",
       "msg": "曲线函数返回None：buy_from_price_with_token_output"
     },
     {
-      "code": 6079,
+      "code": 6047,
       "name": "SellFromPriceWithTokenNoneError",
       "msg": "曲线函数返回None：sell_from_price_with_token_input"
     },
     {
-      "code": 6080,
+      "code": 6048,
       "name": "ExceedsMaxSolAmount",
       "msg": "用户设置的最大SOL可使用金额不足"
     },
     {
-      "code": 6081,
-      "name": "InsufficientTokenOutput",
-      "msg": "获得的代币数量不足"
-    },
-    {
-      "code": 6082,
-      "name": "InsufficientTokenBalance",
-      "msg": "代币余额不足"
-    },
-    {
-      "code": 6083,
+      "code": 6049,
       "name": "InsufficientSolOutput",
       "msg": "获得的SOL数量不足"
     },
     {
-      "code": 6084,
+      "code": 6050,
       "name": "InsufficientRepayment",
       "msg": "平仓收益不足以偿还借款"
     },
     {
-      "code": 6085,
+      "code": 6051,
       "name": "InsufficientBorrowingReserve",
       "msg": "借款请求超过可用储备"
     },
     {
-      "code": 6086,
+      "code": 6052,
       "name": "InsufficientTokenSale",
       "msg": "实际卖出的代币数量不足"
     },
     {
-      "code": 6087,
+      "code": 6053,
       "name": "InsufficientLiquidity",
       "msg": "当前订单可提供的流动性不足"
     },
     {
-      "code": 6088,
+      "code": 6054,
+      "name": "InsufficientMarketLiquidity",
+      "msg": "市场流动性不足，即使清算所有止损订单也无法满足交易需求"
+    },
+    {
+      "code": 6055,
       "name": "TokenAmountDifferenceOutOfRange",
       "msg": "保证金交易时,区间计算误差值太大"
     },
     {
-      "code": 6089,
+      "code": 6056,
       "name": "BorrowAmountMismatch",
       "msg": "借款金额与锁定代币数量不匹配"
     },
     {
-      "code": 6090,
+      "code": 6057,
       "name": "CloseFeeCalculationError",
       "msg": "平仓手续费计算错误"
     },
     {
-      "code": 6091,
-      "name": "InsufficientCloseProfit",
-      "msg": "平仓收益不足"
-    },
-    {
-      "code": 6092,
-      "name": "CloseTransferError",
-      "msg": "平仓转账错误"
-    },
-    {
-      "code": 6093,
-      "name": "UpHeadNotEmpty",
-      "msg": "上涨链表头不为空，而客户端传入空值,无法进行普通买入交易"
-    },
-    {
-      "code": 6094,
-      "name": "DownHeadNotEmpty",
-      "msg": "下跌链表头不为空，而客户端传入空值,无法进行普通卖出交易"
-    },
-    {
-      "code": 6095,
-      "name": "UpHeadOrderMismatch",
-      "msg": "上涨链表头与orders[0]不匹配"
-    },
-    {
-      "code": 6096,
-      "name": "DownHeadOrderMismatch",
-      "msg": "下跌链表头与orders[0]不匹配"
-    },
-    {
-      "code": 6097,
+      "code": 6058,
       "name": "InsufficientMargin",
       "msg": "保证金不足"
     },
     {
-      "code": 6098,
+      "code": 6059,
       "name": "InsufficientMinimumMargin",
       "msg": "保证金低于最小限制"
     },
     {
-      "code": 6099,
+      "code": 6060,
       "name": "InvalidAccountOwner",
       "msg": "账户所有者不正确"
     },
     {
-      "code": 6100,
-      "name": "AccountBorrowFailed",
-      "msg": "账户借用失败"
-    },
-    {
-      "code": 6101,
+      "code": 6061,
       "name": "SellAmountExceedsOrderAmount",
       "msg": "卖出数量超过订单持有的代币数量"
     },
     {
-      "code": 6102,
+      "code": 6062,
       "name": "OrderNotExpiredMustCloseByOwner",
       "msg": "未超时订单必须由开仓者平仓"
     },
     {
-      "code": 6103,
+      "code": 6063,
       "name": "SettlementAddressMustBeOwnerAddress",
       "msg": "结算地址必须是开仓地址"
     },
     {
-      "code": 6104,
+      "code": 6064,
       "name": "BuyAmountExceedsOrderAmount",
       "msg": "买入数量超过订单持有的代币数量"
     },
     {
-      "code": 6105,
+      "code": 6065,
       "name": "InsufficientTradeAmount",
       "msg": "交易数量低于最小限制"
     },
     {
-      "code": 6106,
+      "code": 6066,
+      "name": "TradeCooldownNotExpired",
+      "msg": "交易冷却期未结束，请稍后再试"
+    },
+    {
+      "code": 6067,
+      "name": "ExceedApprovalAmount",
+      "msg": "卖出数量超过批准额度，请先调用approval函数"
+    },
+    {
+      "code": 6068,
+      "name": "CooldownNotInitialized",
+      "msg": "Sell交易需要先调用approval或buy函数初始化冷却PDA"
+    },
+    {
+      "code": 6069,
+      "name": "CannotCloseCooldownWithBalance",
+      "msg": "代币余额不为0，无法关闭冷却PDA"
+    },
+    {
+      "code": 6070,
+      "name": "InvalidCooldownPDA",
+      "msg": "传入的 cooldown PDA 地址不正确"
+    },
+    {
+      "code": 6071,
       "name": "RemainingTokenAmountTooSmall",
       "msg": "剩余代币数量低于最小交易限制"
     },
     {
-      "code": 6107,
+      "code": 6072,
       "name": "PriceCalculationError",
       "msg": "价格计算错误"
     },
     {
-      "code": 6108,
+      "code": 6073,
       "name": "InvalidFeeRecipientAccount",
       "msg": "手续费接收账户地址不匹配"
     },
     {
-      "code": 6109,
+      "code": 6074,
       "name": "InvalidOrderMintAddress",
       "msg": "订单mint地址与curve账户mint不匹配"
     },
     {
-      "code": 6110,
-      "name": "InsufficientStopLossLiquidity",
-      "msg": "止损单预留流动性不足"
-    },
-    {
-      "code": 6111,
-      "name": "InvalidOrderIndex",
-      "msg": "无效的订单索引"
-    },
-    {
-      "code": 6112,
+      "code": 6075,
       "name": "InvalidFeePercentage",
       "msg": "手续费分配比例必须在0-100之间"
     },
     {
-      "code": 6113,
-      "name": "InvalidLpPairsCount",
-      "msg": "LP配对数组长度必须等于MAX_ORDERS_COUNT"
-    },
-    {
-      "code": 6114,
+      "code": 6076,
       "name": "InvalidStopLossPrice",
       "msg": "止损价格不满足最小间隔要求"
     },
     {
-      "code": 6115,
-      "name": "InvalidOrderChainSequence",
-      "msg": "ctx带入的,或强平时,链表顺序错乱"
-    },
-    {
-      "code": 6116,
-      "name": "InvalidCloseOrderId",
-      "msg": "无效的平仓订单ID"
-    },
-    {
-      "code": 6117,
-      "name": "PartialCloseNotSupport",
-      "msg": "暂时不支持部份平仓"
-    },
-    {
-      "code": 6118,
-      "name": "DuplicateValidIndices",
-      "msg": "获取多个可变引用时未越界的索引不能重复"
-    },
-    {
-      "code": 6119,
+      "code": 6077,
       "name": "NoProfitableFunds",
       "msg": "无盈利资金可转移"
     },
     {
-      "code": 6120,
-      "name": "PositionAssetIsZero",
-      "msg": "持仓资产为零"
-    },
-    {
-      "code": 6121,
-      "name": "InvalidOrderType",
-      "msg": "订单类型不匹配预期值"
-    },
-    {
-      "code": 6122,
-      "name": "CloseOrderAddressMismatch",
-      "msg": "平仓订单地址与实际地址不匹配"
-    },
-    {
-      "code": 6123,
+      "code": 6078,
       "name": "InsufficientPoolFunds",
       "msg": "池子资金不足"
     },
     {
-      "code": 6124,
-      "name": "LinkedListInsertNodeNotNew",
-      "msg": "插入节点非新节点，已有链接关系"
+      "code": 6079,
+      "name": "OrderBookManagerOverflow",
+      "msg": "数学运算溢出"
     },
     {
-      "code": 6125,
-      "name": "LinkedListInsertNodePrevBurnAddress",
-      "msg": "插入节点的前驱指向黑洞地址"
+      "code": 6080,
+      "name": "OrderBookManagerInvalidSlotIndex",
+      "msg": "无效的槽位索引"
     },
     {
-      "code": 6126,
-      "name": "LinkedListInsertNodeNextBurnAddress",
-      "msg": "插入节点的后继指向黑洞地址"
+      "code": 6081,
+      "name": "OrderBookManagerInvalidAccountData",
+      "msg": "无效的账户数据"
     },
     {
-      "code": 6127,
-      "name": "LinkedListInsertEmptyHeadNotNone",
-      "msg": "空表插入但链表头部非空"
+      "code": 6082,
+      "name": "OrderBookManagerExceedsMaxCapacity",
+      "msg": "新容量超过最大限制"
     },
     {
-      "code": 6128,
-      "name": "LinkedListInsertHeadNextNotHead",
-      "msg": "头节点插入时后继节点不是链表头"
+      "code": 6083,
+      "name": "OrderBookManagerExceedsAccountSizeLimit",
+      "msg": "账户大小超过 10MB 限制"
     },
     {
-      "code": 6129,
-      "name": "LinkedListInsertHeadNextPrevNotNone",
-      "msg": "头节点插入时后继节点的前驱非空"
+      "code": 6084,
+      "name": "OrderBookManagerOrderIdMismatch",
+      "msg": "订单 ID 不匹配"
     },
     {
-      "code": 6130,
-      "name": "LinkedListInsertMiddlePrevNextMismatch",
-      "msg": "中间节点插入时前节点的next不指向后节点"
+      "code": 6085,
+      "name": "OrderBookManagerEmptyOrderBook",
+      "msg": "订单簿为空"
     },
     {
-      "code": 6131,
-      "name": "LinkedListInsertMiddleNextPrevMismatch",
-      "msg": "中间节点插入时后节点的prev不指向前节点"
+      "code": 6086,
+      "name": "OrderBookManagerAccountNotWritable",
+      "msg": "账户不可写"
     },
     {
-      "code": 6132,
-      "name": "LinkedListInsertTailPrevNextNotNone",
-      "msg": "尾节点插入时前节点的next不为空"
+      "code": 6087,
+      "name": "OrderBookManagerNotRentExempt",
+      "msg": "账户未达到 rent-exempt"
     },
     {
-      "code": 6133,
-      "name": "LinkedListInsertTailPrevPrevIsNone",
-      "msg": "尾节点插入时前节点的prev为空但前节点非链表头"
+      "code": 6088,
+      "name": "OrderBookManagerInvalidRentBalance",
+      "msg": "租金余额无效"
     },
     {
-      "code": 6134,
-      "name": "LinkedListUpCurrentOrderTypeInvalid",
-      "msg": "Up链表中当前订单的order_type必须是2(做空)"
+      "code": 6089,
+      "name": "OrderBookManagerInsufficientFunds",
+      "msg": "余额不足"
     },
     {
-      "code": 6135,
-      "name": "LinkedListUpPrevOrderTypeInvalid",
-      "msg": "Up链表中前序订单的order_type必须是2(做空)"
+      "code": 6090,
+      "name": "OrderBookManagerInvalidAccountOwner",
+      "msg": "无效的账户所有者"
     },
     {
-      "code": 6136,
-      "name": "LinkedListUpNextOrderTypeInvalid",
-      "msg": "Up链表中后继订单的order_type必须是2(做空)"
+      "code": 6091,
+      "name": "OrderBookManagerDataOutOfBounds",
+      "msg": "数据访问越界"
     },
     {
-      "code": 6137,
-      "name": "LinkedListDownCurrentOrderTypeInvalid",
-      "msg": "Down链表中当前订单的order_type必须是1(做多)"
+      "code": 6092,
+      "name": "NoValidInsertPosition",
+      "msg": "无法找到合适的插入位置，所有候选位置均因价格区间重叠而失败"
     },
     {
-      "code": 6138,
-      "name": "LinkedListDownPrevOrderTypeInvalid",
-      "msg": "Down链表中前序订单的order_type必须是1(做多)"
+      "code": 6093,
+      "name": "EmptyCloseInsertIndices",
+      "msg": "close_insert_indices 数组不能为空"
     },
     {
-      "code": 6139,
-      "name": "LinkedListDownNextOrderTypeInvalid",
-      "msg": "Down链表中后继订单的order_type必须是1(做多)"
+      "code": 6094,
+      "name": "TooManyCloseInsertIndices",
+      "msg": "close_insert_indices 数组元素数量不能超过 20 个"
     },
     {
-      "code": 6140,
-      "name": "LinkedListRemoveNodePrevBurnAddress",
-      "msg": "删除节点的前驱指向黑洞地址"
+      "code": 6095,
+      "name": "CloseOrderNotFound",
+      "msg": "未找到指定的平仓订单"
     },
     {
-      "code": 6141,
-      "name": "LinkedListRemoveNodeNextBurnAddress",
-      "msg": "删除节点的后继指向黑洞地址"
-    },
-    {
-      "code": 6142,
-      "name": "LinkedListRemoveSingleNotHead",
-      "msg": "删除单节点时该节点不是链表头"
-    },
-    {
-      "code": 6143,
-      "name": "LinkedListRemoveSingleLinksNotNone",
-      "msg": "删除单节点时节点的前后链接必须为空"
-    },
-    {
-      "code": 6144,
-      "name": "LinkedListRemoveHeadNotHead",
-      "msg": "删除头节点时该节点不是链表头"
-    },
-    {
-      "code": 6145,
-      "name": "LinkedListRemoveHeadLinksInvalid",
-      "msg": "删除头节点时链接关系不正确(前驱应为空,后继应指向next)"
-    },
-    {
-      "code": 6146,
-      "name": "LinkedListRemoveHeadNextPrevInvalid",
-      "msg": "删除头节点时后继节点的前驱不指向当前节点"
-    },
-    {
-      "code": 6147,
-      "name": "LinkedListRemoveTailNextNotNone",
-      "msg": "删除尾节点时节点的后继必须为空"
-    },
-    {
-      "code": 6148,
-      "name": "LinkedListRemoveTailPrevInvalid",
-      "msg": "删除尾节点时节点的前驱不指向prev节点"
-    },
-    {
-      "code": 6149,
-      "name": "LinkedListRemoveTailPrevNextInvalid",
-      "msg": "删除尾节点时前驱节点的后继不指向当前节点"
-    },
-    {
-      "code": 6150,
-      "name": "LinkedListRemoveMiddleLinksInvalid",
-      "msg": "删除中间节点时节点的链接关系不正确"
-    },
-    {
-      "code": 6151,
-      "name": "LinkedListRemoveMiddlePrevNextInvalid",
-      "msg": "删除中间节点时前驱节点的后继不指向当前节点"
-    },
-    {
-      "code": 6152,
-      "name": "LinkedListRemoveMiddleNextPrevInvalid",
-      "msg": "删除中间节点时后继节点的前驱不指向当前节点"
-    },
-    {
-      "code": 6153,
-      "name": "LinkedListForceLiquidateStateInvalid",
-      "msg": "强制清算时链表状态无效"
-    },
-    {
-      "code": 6154,
-      "name": "LinkedListForceLiquidateSequenceInvalid",
-      "msg": "强制清算过程中链表顺序错误"
+      "code": 6096,
+      "name": "LinkedListDeleteCountMismatch",
+      "msg": "链表删除计数异常：删除前后计数不一致"
     }
   ],
   "types": [
@@ -2977,16 +3434,12 @@
             "type": "pubkey"
           },
           {
-            "name": "up_head",
-            "type": {
-              "option": "pubkey"
-            }
+            "name": "up_orderbook",
+            "type": "pubkey"
           },
           {
-            "name": "down_head",
-            "type": {
-              "option": "pubkey"
-            }
+            "name": "down_orderbook",
+            "type": "pubkey"
           },
           {
             "name": "bump",
@@ -3023,26 +3476,12 @@
           {
             "name": "latest_price",
             "type": "u128"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ForceLiquidateEvent",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "payer",
-            "type": "pubkey"
           },
           {
-            "name": "mint_account",
-            "type": "pubkey"
-          },
-          {
-            "name": "order_pda",
-            "type": "pubkey"
+            "name": "liquidate_indices",
+            "type": {
+              "vec": "u16"
+            }
           }
         ]
       }
@@ -3085,8 +3524,14 @@
             "type": "u128"
           },
           {
-            "name": "order_pda",
-            "type": "pubkey"
+            "name": "order_id",
+            "type": "u64"
+          },
+          {
+            "name": "liquidate_indices",
+            "type": {
+              "vec": "u16"
+            }
           }
         ]
       }
@@ -3105,168 +3550,66 @@
             "type": "pubkey"
           },
           {
-            "name": "order_pda",
-            "type": "pubkey"
+            "name": "order_id",
+            "type": "u64"
           },
           {
             "name": "latest_price",
             "type": "u128"
           },
           {
-            "name": "order_type",
-            "type": "u8"
-          },
-          {
-            "name": "mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "lock_lp_start_price",
-            "type": "u128"
-          },
-          {
-            "name": "lock_lp_end_price",
-            "type": "u128"
-          },
-          {
-            "name": "lock_lp_sol_amount",
-            "type": "u64"
-          },
-          {
-            "name": "lock_lp_token_amount",
-            "type": "u64"
-          },
-          {
-            "name": "start_time",
-            "type": "u32"
-          },
-          {
-            "name": "end_time",
-            "type": "u32"
-          },
-          {
-            "name": "margin_sol_amount",
-            "type": "u64"
-          },
-          {
-            "name": "borrow_amount",
-            "type": "u64"
-          },
-          {
-            "name": "position_asset_amount",
-            "type": "u64"
-          },
-          {
-            "name": "borrow_fee",
-            "type": "u16"
-          }
-        ]
-      }
-    },
-    {
-      "name": "LpPair",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "sol_amount",
-            "type": "u64"
-          },
-          {
-            "name": "token_amount",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "MarginOrder",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "order_type",
-            "type": "u8"
-          },
-          {
-            "name": "mint",
-            "type": "pubkey"
-          },
-          {
-            "name": "user",
-            "type": "pubkey"
-          },
-          {
-            "name": "next_order",
-            "type": {
-              "option": "pubkey"
-            }
-          },
-          {
-            "name": "prev_order",
-            "type": {
-              "option": "pubkey"
-            }
-          },
-          {
-            "name": "lock_lp_start_price",
-            "type": "u128"
-          },
-          {
-            "name": "lock_lp_end_price",
-            "type": "u128"
-          },
-          {
-            "name": "lock_lp_sol_amount",
-            "type": "u64"
-          },
-          {
-            "name": "lock_lp_token_amount",
-            "type": "u64"
-          },
-          {
-            "name": "start_time",
-            "type": "u32"
-          },
-          {
-            "name": "end_time",
-            "type": "u32"
-          },
-          {
-            "name": "margin_init_sol_amount",
-            "type": "u64"
-          },
-          {
-            "name": "margin_sol_amount",
-            "type": "u64"
-          },
-          {
-            "name": "borrow_amount",
-            "type": "u64"
-          },
-          {
-            "name": "position_asset_amount",
-            "type": "u64"
-          },
-          {
-            "name": "borrow_fee",
-            "type": "u16"
-          },
-          {
             "name": "open_price",
             "type": "u128"
           },
           {
-            "name": "realized_sol_amount",
+            "name": "order_type",
+            "type": "u8"
+          },
+          {
+            "name": "lock_lp_start_price",
+            "type": "u128"
+          },
+          {
+            "name": "lock_lp_end_price",
+            "type": "u128"
+          },
+          {
+            "name": "lock_lp_sol_amount",
             "type": "u64"
           },
           {
-            "name": "bump",
-            "type": "u8"
+            "name": "lock_lp_token_amount",
+            "type": "u64"
+          },
+          {
+            "name": "start_time",
+            "type": "u32"
+          },
+          {
+            "name": "end_time",
+            "type": "u32"
+          },
+          {
+            "name": "margin_sol_amount",
+            "type": "u64"
+          },
+          {
+            "name": "borrow_amount",
+            "type": "u64"
+          },
+          {
+            "name": "position_asset_amount",
+            "type": "u64"
+          },
+          {
+            "name": "borrow_fee",
+            "type": "u16"
+          },
+          {
+            "name": "liquidate_indices",
+            "type": {
+              "vec": "u16"
+            }
           }
         ]
       }
@@ -3299,6 +3642,130 @@
           {
             "name": "fee_discount_flag",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderBook",
+      "docs": [
+        "订单账本 Header 结构",
+        "用于 up_orderbook 和 down_orderbook"
+      ],
+      "serialization": "bytemuckunsafe",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "version",
+            "docs": [
+              "版本号（用于未来升级，当前版本：1） - 1 byte"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "order_type",
+            "docs": [
+              "订单类型（1=做多/down, 2=做空/up） - 1 byte"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump - 1 byte"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_padding1",
+            "docs": [
+              "保留字段（对齐到 8 字节边界） - 5 bytes"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                5
+              ]
+            }
+          },
+          {
+            "name": "authority",
+            "docs": [
+              "协议管理员（有权执行扩容/缩容） - 32 bytes"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "order_id_counter",
+            "docs": [
+              "订单 ID 计数器（用于分配唯一订单 ID，单调递增） - 8 bytes"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "账本创建时间戳（Unix timestamp，秒） - 4 bytes"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "last_modified",
+            "docs": [
+              "最后修改时间戳（Unix timestamp，秒） - 4 bytes"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "total_capacity",
+            "docs": [
+              "总容量（最大槽位数限制） - 4 bytes"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "head",
+            "docs": [
+              "链表头索引（第一个订单） - 2 bytes"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "tail",
+            "docs": [
+              "链表尾索引（最后一个订单） - 2 bytes"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "total",
+            "docs": [
+              "当前订单总数（也是下一个插入的索引） - 2 bytes"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "_padding2",
+            "docs": [
+              "保留字段（对齐到 8 字节边界） - 2 bytes"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "reserved",
+            "docs": [
+              "预留字段（用于未来扩展，如 migration_pda 等） - 32 bytes"
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -3377,16 +3844,12 @@
             "type": "u128"
           },
           {
-            "name": "order_pda",
-            "type": "pubkey"
+            "name": "order_id",
+            "type": "u64"
           },
           {
             "name": "order_type",
             "type": "u8"
-          },
-          {
-            "name": "mint",
-            "type": "pubkey"
           },
           {
             "name": "user",
@@ -3439,6 +3902,12 @@
           {
             "name": "realized_sol_amount",
             "type": "u64"
+          },
+          {
+            "name": "liquidate_indices",
+            "type": {
+              "vec": "u16"
+            }
           }
         ]
       }
@@ -3503,6 +3972,52 @@
           {
             "name": "uri",
             "type": "string"
+          },
+          {
+            "name": "up_orderbook",
+            "type": "pubkey"
+          },
+          {
+            "name": "down_orderbook",
+            "type": "pubkey"
+          },
+          {
+            "name": "latest_price",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TradeCooldown",
+      "docs": [
+        "交易冷却时间PDA",
+        "用于防止高频交易和转账绕过攻击"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "last_trade_time",
+            "docs": [
+              "最近一次交易的时间戳 (Unix timestamp, 秒) - 4 bytes"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "approval_token_amount",
+            "docs": [
+              "允许交易的token数量 (上次交易后的余额快照) - 8 bytes",
+              "用于防止用户通过转账绕过冷却时间"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump - 1 byte"
+            ],
+            "type": "u8"
           }
         ]
       }

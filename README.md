@@ -5,6 +5,7 @@ A JavaScript SDK for interacting with PinPet protocol-related Solana Anchor smar
 
 ## PinPet Project Repositories
 
+- **[PinPet swap](https://devnet.pinpet.fun/#/)** - devnet swap web
 - **[Technical Documentation](https://doc.pinpet.fun/#/)** - Multi-language technical specification docs
 - **[pinpet-sdk](https://github.com/pinpetfun/pinpet-sdk)** - SDK for trading operations
 - **[pinpet-anchor](https://github.com/pinpetfun/pinpet-anchor)** - Solana smart contract code

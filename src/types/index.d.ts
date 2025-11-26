@@ -9,20 +9,19 @@ export interface NetworkConfig {
   name: string;
   defaultDataSource: DataSourceType;
   solanaEndpoint: string;
-  spin_fast_api_url: string;
-  fee_recipient: string;
-  base_fee_recipient: string;
-  params_account: string;
+  pinPetFastApiUrl: string;
+  feeRecipient: string;
+  baseFeeRecipient: string;
+  paramsAccount: string;
 }
 
 export interface PinPetSdkOptions {
   defaultDataSource?: DataSourceType;
   solanaEndpoint?: string;
-  spin_fast_api_url?: string;
-  fee_recipient?: string;
-  base_fee_recipient?: string;
-  params_account?: string;
-  debug_log_path?: string;
+  pinPetFastApiUrl?: string;
+  feeRecipient?: string;
+  baseFeeRecipient?: string;
+  paramsAccount?: string;
   debugLogPath?: string;
 }
 
@@ -257,7 +256,7 @@ export declare class PinPetSdk {
   feeRecipient: PublicKey;
   baseFeeRecipient: PublicKey;
   paramsAccount: PublicKey;
-  spinFastApiUrl: string;
+  pinPetFastApiUrl: string;
   debugLogPath: string | null;
   
   // 常量

@@ -8,28 +8,28 @@ const DEFAULT_NETWORKS = {
     name: 'mainnet-beta',
     defaultDataSource: 'chain',
     solanaEndpoint: 'https://mainnet.helius-rpc.com/?api-key=666f279b-0b08-41cd-97f4-461811d7fc7a',
-    spin_fast_api_url: 'https://api.spin.pet',
-    fee_recipient: '4nffmKaNrex34LkJ99RLxMt2BbgXeopUi8kJnom3YWbv',
-    base_fee_recipient: '8fJpd2nteqkTEnXf4tG6d1MnP9p71KMCV4puc9vaq6kv',
-    params_account: 'DVRnPDW1MvUhRhDfE1kU6aGHoQoufBCmQNbqUH4WFgUd'
+    pinPetFastApiUrl: 'https://api.spin.pet',
+    feeRecipient: '4nffmKaNrex34LkJ99RLxMt2BbgXeopUi8kJnom3YWbv',
+    baseFeeRecipient: '8fJpd2nteqkTEnXf4tG6d1MnP9p71KMCV4puc9vaq6kv',
+    paramsAccount: 'DVRnPDW1MvUhRhDfE1kU6aGHoQoufBCmQNbqUH4WFgUd'
   },
   DEVNET: {
     name: 'devnet',
     defaultDataSource: 'chain',
     solanaEndpoint: 'https://devnet.helius-rpc.com/?api-key=666f279b-0b08-41cd-97f4-461811d7fc7a',
-    spin_fast_api_url: 'https://devtestapi.spin.pet',
-    fee_recipient: 'GesAj2dTn2wdNcxj4x8qsqS9aNRVPBPkE76aaqg7skxu',
-    base_fee_recipient: '5YHi1HsxobLiTD6NQfHJQpoPoRjMuNyXp4RroTvR6dKi',
-    params_account: '4yTBVZZQLiYi2p2xgwQXPb329z9jsQnhoPJyGmF3R4hb'
+    pinPetFastApiUrl: 'https://devtestapi.spin.pet',
+    feeRecipient: 'GesAj2dTn2wdNcxj4x8qsqS9aNRVPBPkE76aaqg7skxu',
+    baseFeeRecipient: '5YHi1HsxobLiTD6NQfHJQpoPoRjMuNyXp4RroTvR6dKi',
+    paramsAccount: '4yTBVZZQLiYi2p2xgwQXPb329z9jsQnhoPJyGmF3R4hb'
   },
   LOCALNET: {
     name: 'localnet',
     defaultDataSource: 'chain', // 'fast' or 'chain'
     solanaEndpoint: 'http://localhost:8899',
-    spin_fast_api_url: 'http://localhost:5051',
-    fee_recipient: 'GesAj2dTn2wdNcxj4x8qsqS9aNRVPBPkE76aaqg7skxu',
-    base_fee_recipient: '5YHi1HsxobLiTD6NQfHJQpoPoRjMuNyXp4RroTvR6dKi',
-    params_account: '4yTBVZZQLiYi2p2xgwQXPb329z9jsQnhoPJyGmF3R4hb'
+    pinPetFastApiUrl: 'http://localhost:3000',
+    feeRecipient: 'GesAj2dTn2wdNcxj4x8qsqS9aNRVPBPkE76aaqg7skxu',
+    baseFeeRecipient: '5YHi1HsxobLiTD6NQfHJQpoPoRjMuNyXp4RroTvR6dKi',
+    paramsAccount: '4yTBVZZQLiYi2p2xgwQXPb329z9jsQnhoPJyGmF3R4hb'
   }
 };
 
