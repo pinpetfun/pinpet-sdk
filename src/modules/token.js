@@ -1,10 +1,10 @@
 const { ComputeBudgetProgram, PublicKey, Transaction, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } = require('@solana/web3.js');
 const { TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
 const anchor = require('@coral-xyz/anchor');
-// 统一使用 buffer 包，所有平台一致
+// Use buffer package consistently across all platforms
 const { Buffer } = require('buffer');
 
-// Metaplex Token Metadata 程序ID
+// Metaplex Token Metadata Program ID
 const METADATA_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
 /**
@@ -159,7 +159,7 @@ class TokenModule {
 
   /**
    * Create token and buy in one transaction
-   * 将 create 和 buy 两个指令合并到一个交易中，一次签名提交
+   * Merges create and buy instructions into a single transaction for a single signature submission
    *
    * @param {Object} params - Creation and buy parameters
    * @param {Keypair} params.mint - Token mint keypair
@@ -194,12 +194,12 @@ class TokenModule {
       maxSolAmount: maxSolAmount.toString()
     });
 
-    // 1. 参数验证
+    // 1. Validate parameters
     if (!anchor.BN.isBN(buyTokenAmount) || !anchor.BN.isBN(maxSolAmount)) {
       throw new Error('buyTokenAmount and maxSolAmount must be anchor.BN type');
     }
 
-    // 2. 调用 create 方法获取 create 交易
+    // 2. Call create method to get create transaction
     console.log('Step 1: Building create transaction...');
     const createResult = await this.create({
       mint,
@@ -209,16 +209,16 @@ class TokenModule {
       payer
     });
 
-    // 3. 从 params 账户读取手续费接收地址
-    // 因为此时 curve_account 还未创建，无法从链上读取
+    // 3. Fetch fee recipient addresses from params account
+    // Since curve_account has not been created yet, cannot read from chain
     console.log('Step 2: Fetching fee recipient accounts from params...');
 
-    // 直接从 SDK 配置中获取手续费接收账户（这些在 SDK 初始化时已经设置）
-    // 避免使用 program.account.params.fetch() 因为可能有 provider 配置问题
+    // Get fee recipient accounts directly from SDK configuration (set during SDK initialization)
+    // Avoid using program.account.params.fetch() due to potential provider configuration issues
     const feeRecipientAccount = this.sdk.feeRecipient;
     const baseFeeRecipientAccount = this.sdk.baseFeeRecipient;
 
-    // 验证这些账户已配置
+    // Verify these accounts are configured
     if (!feeRecipientAccount || !baseFeeRecipientAccount) {
       throw new Error('Fee recipient accounts not configured in SDK options');
     }
@@ -227,17 +227,17 @@ class TokenModule {
     console.log('  Partner fee recipient:', feeRecipientAccount.toString());
     console.log('  Base fee recipient:', baseFeeRecipientAccount.toString());
 
-    // 4. 准备 buy 所需的额外账户
+    // 4. Prepare additional accounts required for buy
     console.log('Step 3: Calculating buy-related accounts...');
     const mintPubkey = mint.publicKey;
 
-    // 计算用户代币账户
+    // Calculate user token account
     const userTokenAccount = await getAssociatedTokenAddress(
       mintPubkey,
       payer
     );
 
-    // 计算 cooldown PDA
+    // Calculate cooldown PDA
     const [cooldownPDA] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('trade_cooldown'),
@@ -247,7 +247,7 @@ class TokenModule {
       this.sdk.programId
     );
 
-    // 计算 orderbook PDAs (复用 create 中计算的值)
+    // Calculate orderbook PDAs (reuse values calculated in create)
     const [upOrderbook] = PublicKey.findProgramAddressSync(
       [Buffer.from('up_orderbook'), mintPubkey.toBuffer()],
       this.sdk.programId
@@ -262,7 +262,7 @@ class TokenModule {
     console.log('  User token account:', userTokenAccount.toString());
     console.log('  Cooldown PDA:', cooldownPDA.toString());
 
-    // 5. 检查用户代币账户是否存在，创建 ATA 指令
+    // 5. Check if user token account exists, create ATA instruction
     console.log('Step 4: Checking if user token account exists...');
     const userTokenAccountInfo = await this.sdk.connection.getAccountInfo(userTokenAccount);
     const createAtaIx = userTokenAccountInfo === null
@@ -282,7 +282,7 @@ class TokenModule {
       console.log('  User token account already exists');
     }
 
-    // 6. 构建 buy 指令
+    // 6. Build buy instruction
     console.log('Step 5: Building buy instruction...');
     const buyIx = await this.sdk.program.methods
       .buy(buyTokenAmount, maxSolAmount)
@@ -305,31 +305,31 @@ class TokenModule {
       })
       .instruction();
 
-    // 7. 合并交易：create + buy
+    // 7. Merge transactions: create + buy
     console.log('Step 6: Merging create and buy transactions...');
     const transaction = new Transaction();
 
-    // 设置计算单元限制
+    // Set compute unit limit
     const modifyComputeUnits = ComputeBudgetProgram.setComputeUnitLimit({
       units: computeUnits
     });
     transaction.add(modifyComputeUnits);
 
-    // 添加 create 交易的所有指令（跳过 create 中的计算单元指令）
+    // Add all instructions from create transaction (skip compute budget instruction from create)
     createResult.transaction.instructions.forEach(ix => {
-      // 跳过 create 交易中的计算单元指令（我们已经添加了）
+      // Skip compute budget instruction from create transaction (we already added it)
       if (ix.programId.equals(ComputeBudgetProgram.programId)) {
         return;
       }
       transaction.add(ix);
     });
 
-    // 添加 ATA 创建指令（如果需要）
+    // Add ATA creation instruction (if needed)
     if (createAtaIx) {
       transaction.add(createAtaIx);
     }
 
-    // 添加 buy 指令
+    // Add buy instruction
     transaction.add(buyIx);
 
     console.log('CreateAndBuy transaction built successfully:');
@@ -337,14 +337,14 @@ class TokenModule {
     console.log('  Compute units:', computeUnits);
     console.log('  Signers required:', [payer.toString(), mint.publicKey.toString()]);
 
-    // 8. 返回合并后的交易
+    // 8. Return merged transaction
     return {
       transaction,
-      signers: [mint],  // mint keypair 需要签名
+      signers: [mint],  // mint keypair needs to sign
       accounts: {
-        // create 的账户
+        // create accounts
         ...createResult.accounts,
-        // buy 的账户
+        // buy accounts
         userTokenAccount,
         cooldown: cooldownPDA,
         feeRecipientAccount,

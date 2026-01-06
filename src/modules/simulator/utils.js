@@ -4,10 +4,10 @@
 const LIQUIDITY_RESERVATION = 100;  // 100%
 
 // Price adjustment percentage
-const PRICE_ADJUSTMENT_PERCENTAGE = 15; //  5就是 0.5%
+// 5 means 0.5%
+const PRICE_ADJUSTMENT_PERCENTAGE = 15;
 
 // Minimum stop loss percentage - stop loss price must be at least this far from current price
-// 最小止损百分比 - 止损价格必须与当前价格至少相差此百分比
 // Example: 40 means 4.0% (calculation: 40/1000 = 0.04 = 4%)
 const MIN_STOP_LOSS_PERCENT = 40; // 4.0%
 

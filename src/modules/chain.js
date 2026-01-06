@@ -2,7 +2,7 @@
 const { PublicKey } = require('@solana/web3.js');
 const anchor = require('@coral-xyz/anchor');
 const CurveAMM = require('../utils/curve_amm');
-// 统一使用 buffer 包，所有平台一致
+// Unified use of buffer package for consistency across all platforms
 const { Buffer } = require('buffer');
 
 /**
@@ -51,6 +51,7 @@ class ChainModule {
    * @returns {string} returns.mint - Token mint account address
    * @returns {string} returns.upOrderbook - Up orderbook (short orders) PDA address
    * @returns {string} returns.downOrderbook - Down orderbook (long orders) PDA address
+   * @returns {string} returns.creator - Token creator address, the wallet that created this token
    * @returns {string} returns.poolTokenAccount - Pool token account address, stores tokens in the liquidity pool
    * @returns {string} returns.poolSolAccount - Pool SOL account address, stores native SOL in the liquidity pool
    *
@@ -91,6 +92,7 @@ class ChainModule {
    *
    *   // Display account addresses
    *   console.log('=== Account Addresses ===');
+   *   console.log('Token creator:', curveData.creator);
    *   console.log('Base fee recipient address:', curveData.baseFeeRecipient);
    *   console.log('Fee recipient address:', curveData.feeRecipient);
    *   console.log('Pool token account:', curveData.poolTokenAccount);
@@ -239,6 +241,9 @@ class ChainModule {
         // New OrderBook structure - always has value (not optional)
         upOrderbook: decodedData.upOrderbook.toString(),
         downOrderbook: decodedData.downOrderbook.toString(),
+
+        // Creator address
+        creator: decodedData.creator.toString(),
 
         // SOL balance information
         baseFeeRecipientBalance: baseFeeRecipientBalance,  // Unit: lamports
@@ -415,8 +420,8 @@ class ChainModule {
    * //         "lock_lp_token_amount": 713848715669,                   // LP locked token amount (min unit)
    * //         "next_lp_sol_amount": 3299491609,                       // Next LP SOL amount (lamports) - NEW
    * //         "next_lp_token_amount": 713848715669,                   // Next LP token amount (min unit) - NEW
-   * //         "start_time": 1756352482,                               // Start time (Unix timestamp)
-   * //         "end_time": 1756525282,                                 // End time (Unix timestamp)
+   * //         "start_time": 1756352482,                               // Start time (Unix timestamp, i64 as number)
+   * //         "end_time": 1756525282,                                 // End time (Unix timestamp, i64 as number)
    * //         "margin_init_sol_amount": 571062973,                    // Initial margin SOL amount (lamports) - NEW
    * //         "margin_sol_amount": 571062973,                         // Margin SOL amount (lamports)
    * //         "borrow_amount": 3860656108,                            // Borrow amount (lamports)
@@ -535,22 +540,22 @@ class ChainModule {
           // Order ID field (u64 -> string)
           order_id: order.orderId.toString(),
 
-          // Amount fields (u64 -> number)
-          lock_lp_sol_amount: Number(order.lockLpSolAmount),
-          lock_lp_token_amount: Number(order.lockLpTokenAmount),
-          next_lp_sol_amount: Number(order.nextLpSolAmount),
-          next_lp_token_amount: Number(order.nextLpTokenAmount),
+          // Amount fields (u64 -> string) - Fix precision issue
+          lock_lp_sol_amount: order.lockLpSolAmount.toString(),
+          lock_lp_token_amount: order.lockLpTokenAmount.toString(),
+          next_lp_sol_amount: order.nextLpSolAmount.toString(),
+          next_lp_token_amount: order.nextLpTokenAmount.toString(),
 
           // Time fields (u32 -> number)
           start_time: order.startTime,
           end_time: order.endTime,
 
-          // Margin and position fields (u64 -> number)
-          margin_init_sol_amount: Number(order.marginInitSolAmount),
-          margin_sol_amount: Number(order.marginSolAmount),
-          borrow_amount: Number(order.borrowAmount),
-          position_asset_amount: Number(order.positionAssetAmount),
-          realized_sol_amount: Number(order.realizedSolAmount),
+          // Margin and position fields (u64 -> string) - Fix precision issue
+          margin_init_sol_amount: order.marginInitSolAmount.toString(),
+          margin_sol_amount: order.marginSolAmount.toString(),
+          borrow_amount: order.borrowAmount.toString(),
+          position_asset_amount: order.positionAssetAmount.toString(),
+          realized_sol_amount: order.realizedSolAmount.toString(),
 
           // Fee field (u16 -> number)
           borrow_fee: order.borrowFee,
@@ -601,10 +606,10 @@ class ChainModule {
    * @returns {Object} Parsed header object
    */
   _parseOrderBookHeader(data) {
-    // Header structure (104 bytes total):
+    // Header structure (112 bytes total):
     // discriminator(8) + version(1) + order_type(1) + bump(1) + padding1(5) +
-    // authority(32) + order_id_counter(8) + created_at(4) + last_modified(4) +
-    // total_capacity(4) + head(2) + tail(2) + total(2) + padding2(2) + reserved(32) + alignment(4)
+    // authority(32) + order_id_counter(8) + created_at(8) + last_modified(8) +
+    // total_capacity(4) + head(2) + tail(2) + total(2) + padding2(2) + reserved(32)
 
     let offset = 8; // Skip discriminator
 
@@ -625,11 +630,13 @@ class ChainModule {
     const orderIdCounter = data.readBigUInt64LE(offset);
     offset += 8;
 
-    const createdAt = data.readUInt32LE(offset);
-    offset += 4;
+    // created_at: i64 (8 bytes) - Unix timestamp in seconds
+    const createdAt = Number(data.readBigInt64LE(offset));
+    offset += 8;
 
-    const lastModified = data.readUInt32LE(offset);
-    offset += 4;
+    // last_modified: i64 (8 bytes) - Unix timestamp in seconds
+    const lastModified = Number(data.readBigInt64LE(offset));
+    offset += 8;
 
     const totalCapacity = data.readUInt32LE(offset);
     offset += 4;
@@ -645,7 +652,6 @@ class ChainModule {
 
     offset += 2; // Skip padding2
     offset += 32; // Skip reserved
-    offset += 4; // Skip alignment padding
 
     return {
       version,
@@ -659,7 +665,7 @@ class ChainModule {
       head,
       tail,
       total,
-      headerSize: 104 // Fixed header size
+      headerSize: 112 // Fixed header size (updated for i64 timestamps)
     };
   }
 
@@ -668,7 +674,7 @@ class ChainModule {
    * @private
    * @param {Buffer} data - OrderBook account data
    * @param {number} index - Order slot index
-   * @param {number} headerSize - Header size (104 bytes)
+   * @param {number} headerSize - Header size (112 bytes)
    * @returns {Object} Parsed order object
    */
   _parseMarginOrder(data, index, headerSize) {
@@ -678,9 +684,9 @@ class ChainModule {
     // next_lp_sol_amount(8) + next_lp_token_amount(8) +
     // margin_init_sol_amount(8) + margin_sol_amount(8) + borrow_amount(8) +
     // position_asset_amount(8) + realized_sol_amount(8) +
-    // version(4) + start_time(4) + end_time(4) +
+    // start_time(8) + end_time(8) + version(4) +
     // next_order(2) + prev_order(2) + borrow_fee(2) +
-    // order_type(1) + padding(13)
+    // order_type(1) + padding(5)
 
     const MARGIN_ORDER_SIZE = 192;
     let offset = 8 + headerSize + index * MARGIN_ORDER_SIZE;
@@ -746,16 +752,16 @@ class ChainModule {
     const realizedSolAmount = data.readBigUInt64LE(offset);
     offset += 8;
 
+    // start_time (i64, 8 bytes) - Unix timestamp in seconds
+    const startTime = Number(data.readBigInt64LE(offset));
+    offset += 8;
+
+    // end_time (i64, 8 bytes) - Unix timestamp in seconds
+    const endTime = Number(data.readBigInt64LE(offset));
+    offset += 8;
+
     // version (u32, 4 bytes)
     const version = data.readUInt32LE(offset);
-    offset += 4;
-
-    // start_time (u32, 4 bytes)
-    const startTime = data.readUInt32LE(offset);
-    offset += 4;
-
-    // end_time (u32, 4 bytes)
-    const endTime = data.readUInt32LE(offset);
     offset += 4;
 
     // next_order (u16, 2 bytes)
@@ -774,8 +780,8 @@ class ChainModule {
     const orderType = data.readUInt8(offset);
     offset += 1;
 
-    // Skip padding (13 bytes)
-    offset += 13;
+    // Skip padding (5 bytes)
+    offset += 5;
 
     // Note: mint is not stored in MarginOrder structure
     // It should be obtained from context (the mint parameter passed to orders() function)
@@ -871,8 +877,8 @@ class ChainModule {
    * //         "lock_lp_token_amount": 713848715669,
    * //         "next_lp_sol_amount": 3299491609,
    * //         "next_lp_token_amount": 713848715669,
-   * //         "start_time": 1756352482,
-   * //         "end_time": 1756525282,
+   * //         "start_time": 1756352482,                               // Unix timestamp (i64 as number)
+   * //         "end_time": 1756525282,                                 // Unix timestamp (i64 as number)
    * //         "margin_init_sol_amount": 571062973,
    * //         "margin_sol_amount": 571062973,
    * //         "borrow_amount": 3860656108,
@@ -984,22 +990,22 @@ class ChainModule {
             // Order ID field (u64 -> string)
             order_id: order.orderId.toString(),
 
-            // Amount fields (u64 -> number)
-            lock_lp_sol_amount: Number(order.lockLpSolAmount),
-            lock_lp_token_amount: Number(order.lockLpTokenAmount),
-            next_lp_sol_amount: Number(order.nextLpSolAmount),
-            next_lp_token_amount: Number(order.nextLpTokenAmount),
+            // Amount fields (u64 -> string) - Fix precision issue
+            lock_lp_sol_amount: order.lockLpSolAmount.toString(),
+            lock_lp_token_amount: order.lockLpTokenAmount.toString(),
+            next_lp_sol_amount: order.nextLpSolAmount.toString(),
+            next_lp_token_amount: order.nextLpTokenAmount.toString(),
 
             // Time fields (u32 -> number)
             start_time: order.startTime,
             end_time: order.endTime,
 
-            // Margin and position fields (u64 -> number)
-            margin_init_sol_amount: Number(order.marginInitSolAmount),
-            margin_sol_amount: Number(order.marginSolAmount),
-            borrow_amount: Number(order.borrowAmount),
-            position_asset_amount: Number(order.positionAssetAmount),
-            realized_sol_amount: Number(order.realizedSolAmount),
+            // Margin and position fields (u64 -> string) - Fix precision issue
+            margin_init_sol_amount: order.marginInitSolAmount.toString(),
+            margin_sol_amount: order.marginSolAmount.toString(),
+            borrow_amount: order.borrowAmount.toString(),
+            position_asset_amount: order.positionAssetAmount.toString(),
+            realized_sol_amount: order.realizedSolAmount.toString(),
 
             // Fee field (u16 -> number)
             borrow_fee: order.borrowFee,
@@ -1086,8 +1092,8 @@ class ChainModule {
    * //         "lock_lp_token_amount": 32000000000000,                    // LP locked token
    * //         "next_lp_sol_amount": 2535405978,                          // Next LP SOL - NEW
    * //         "next_lp_token_amount": 32000000000000,                    // Next LP token - NEW
-   * //         "start_time": 1755964862,                                  // Start timestamp
-   * //         "end_time": 1756137662,                                    // End timestamp
+   * //         "start_time": 1755964862,                                  // Start timestamp (i64 as number)
+   * //         "end_time": 1756137662,                                    // End timestamp (i64 as number)
    * //         "margin_init_sol_amount": 1909140052,                      // Initial margin - NEW
    * //         "margin_sol_amount": 1909140052,                           // Current margin
    * //         "borrow_amount": 32000000000000,                           // Borrow amount
@@ -1185,22 +1191,22 @@ class ChainModule {
                 // Order ID field (u64 -> string)
                 order_id: order.orderId.toString(),
 
-                // Amount fields (u64 -> number)
-                lock_lp_sol_amount: Number(order.lockLpSolAmount),
-                lock_lp_token_amount: Number(order.lockLpTokenAmount),
-                next_lp_sol_amount: Number(order.nextLpSolAmount),
-                next_lp_token_amount: Number(order.nextLpTokenAmount),
+                // Amount fields (u64 -> string) - Fix precision issue
+                lock_lp_sol_amount: order.lockLpSolAmount.toString(),
+                lock_lp_token_amount: order.lockLpTokenAmount.toString(),
+                next_lp_sol_amount: order.nextLpSolAmount.toString(),
+                next_lp_token_amount: order.nextLpTokenAmount.toString(),
 
                 // Time fields (u32 -> number)
                 start_time: order.startTime,
                 end_time: order.endTime,
 
-                // Margin and position fields (u64 -> number)
-                margin_init_sol_amount: Number(order.marginInitSolAmount),
-                margin_sol_amount: Number(order.marginSolAmount),
-                borrow_amount: Number(order.borrowAmount),
-                position_asset_amount: Number(order.positionAssetAmount),
-                realized_sol_amount: Number(order.realizedSolAmount),
+                // Margin and position fields (u64 -> string) - Fix precision issue
+                margin_init_sol_amount: order.marginInitSolAmount.toString(),
+                margin_sol_amount: order.marginSolAmount.toString(),
+                borrow_amount: order.borrowAmount.toString(),
+                position_asset_amount: order.positionAssetAmount.toString(),
+                realized_sol_amount: order.realizedSolAmount.toString(),
 
                 // Fee field (u16 -> number)
                 borrow_fee: order.borrowFee,

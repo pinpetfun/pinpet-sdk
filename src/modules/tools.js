@@ -1,6 +1,8 @@
 const anchor = require('@coral-xyz/anchor');
-const { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } = require('@solana/web3.js');
+const { PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY, Transaction } = require('@solana/web3.js');
 const { getAssociatedTokenAddress, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+// Use buffer package consistently across all platforms
+const { Buffer } = require('buffer');
 
 /**
  * Tools Module
@@ -53,32 +55,6 @@ class ToolsModule {
     const mintPubkey = typeof mint === 'string' ? new PublicKey(mint) : mint;
     const walletPubkey = wallet.publicKey;
 
-    // Calculate required PDA account addresses
-    const [curveAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('borrowing_curve'), mintPubkey.toBuffer()],
-      this.sdk.programId
-    );
-
-    const [poolTokenAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('pool_token'), mintPubkey.toBuffer()],
-      this.sdk.programId
-    );
-
-    const [poolSolAccount] = PublicKey.findProgramAddressSync(
-      [Buffer.from('pool_sol'), mintPubkey.toBuffer()],
-      this.sdk.programId
-    );
-
-    const [upOrderbook] = PublicKey.findProgramAddressSync(
-      [Buffer.from('up_orderbook'), mintPubkey.toBuffer()],
-      this.sdk.programId
-    );
-
-    const [downOrderbook] = PublicKey.findProgramAddressSync(
-      [Buffer.from('down_orderbook'), mintPubkey.toBuffer()],
-      this.sdk.programId
-    );
-
     // Calculate user token account
     const userTokenAccount = await getAssociatedTokenAddress(
       mintPubkey,
@@ -95,51 +71,23 @@ class ToolsModule {
       this.sdk.programId
     );
 
-    // Get curve account to fetch fee recipient addresses
-    // Use manual fetch method to avoid provider issues
-    const curveAccountInfo = await this.sdk.connection.getAccountInfo(curveAccount);
-    if (!curveAccountInfo) {
-      throw new Error(`Curve account does not exist for mint: ${mint}`);
-    }
-
-    const accountsCoder = new anchor.BorshAccountsCoder(this.sdk.program.idl);
-    let curveAccountData;
-    try {
-      curveAccountData = accountsCoder.decode('BorrowingBondingCurve', curveAccountInfo.data);
-    } catch (e1) {
-      try {
-        curveAccountData = accountsCoder.decode('borrowingBondingCurve', curveAccountInfo.data);
-      } catch (e2) {
-        throw new Error(`Cannot decode curve account: ${e1.message}`);
-      }
-    }
-
-    // Build transaction
-    const transaction = await this.sdk.program.methods
+    // Build instruction
+    const approveTradeIx = await this.sdk.program.methods
       .approveTrade()
       .accounts({
         payer: walletPubkey,
         mintAccount: mintPubkey,
-        curveAccount: curveAccount,
-        poolTokenAccount: poolTokenAccount,
-        poolSolAccount: poolSolAccount,
-        upOrderbook: upOrderbook,
-        downOrderbook: downOrderbook,
         userTokenAccount: userTokenAccount,
+        cooldown: cooldown,
         tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
         rent: SYSVAR_RENT_PUBKEY,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        feeRecipientAccount: curveAccountData.feeRecipient,
-        baseFeeRecipientAccount: curveAccountData.baseFeeRecipient,
-        cooldown: cooldown,
       })
-      .transaction();
+      .instruction();
 
-    // Get latest blockhash
-    const { blockhash } = await this.sdk.connection.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = walletPubkey;
+    // Build transaction
+    const transaction = new Transaction().add(approveTradeIx);
 
     // Return result
     return {
@@ -148,7 +96,6 @@ class ToolsModule {
       accounts: {
         payer: walletPubkey,
         mintAccount: mintPubkey,
-        curveAccount: curveAccount,
         userTokenAccount: userTokenAccount,
         cooldown: cooldown,
       }
@@ -236,8 +183,8 @@ class ToolsModule {
       }
     }
 
-    // Build transaction
-    const transaction = await this.sdk.program.methods
+    // Build instruction
+    const closeTradeCooldownIx = await this.sdk.program.methods
       .closeTradeCooldown()
       .accounts({
         payer: walletPubkey,
@@ -248,12 +195,10 @@ class ToolsModule {
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .transaction();
+      .instruction();
 
-    // Get latest blockhash
-    const { blockhash } = await this.sdk.connection.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = walletPubkey;
+    // Build transaction
+    const transaction = new Transaction().add(closeTradeCooldownIx);
 
     // Return result
     return {
@@ -269,6 +214,154 @@ class ToolsModule {
         lastTradeTime: cooldownAccountData.lastTradeTime,
         approvalTokenAmount: cooldownAccountData.approvalTokenAmount,
         bump: cooldownAccountData.bump,
+      }
+    };
+  }
+
+  /**
+   * Validate cooldown PDA approval_token_amount matches user's current token balance
+   *
+   * Use Cases:
+   * - Before trading, verify if the cooldown PDA is in sync with user's token balance
+   * - Check if user needs to call approveTrade after receiving tokens
+   * - Validate cooldown state for security checks
+   *
+   * @param {Object} params - Parameters
+   * @param {PublicKey|string} params.mint - Token mint address
+   * @param {Keypair|Object} params.wallet - User wallet (can be Keypair or object with publicKey)
+   * @param {anchor.BN|number|string} [params.tokenBalance] - Optional: user's current token balance, if not provided will fetch from chain
+   * @returns {Promise<Object>} Validation result with detailed info
+   *
+   * @example
+   * // Auto-fetch token balance from chain
+   * const result = await sdk.tools.validateCooldown({
+   *   mint: 'xxxxx',
+   *   wallet: userKeypair
+   * });
+   *
+   * // Provide token balance manually
+   * const result = await sdk.tools.validateCooldown({
+   *   mint: 'xxxxx',
+   *   wallet: userKeypair,
+   *   tokenBalance: new anchor.BN('1000000')
+   * });
+   *
+   * console.log(result.isValid); // true/false
+   * console.log(result.cooldownInfo.approvalTokenAmount);
+   * console.log(result.tokenBalance);
+   */
+  async validateCooldown(params) {
+    const { mint, wallet, tokenBalance } = params;
+
+    // Validate parameters
+    if (!mint) {
+      throw new Error('mint parameter is required');
+    }
+    if (!wallet) {
+      throw new Error('wallet parameter is required');
+    }
+
+    // Convert mint to PublicKey
+    const mintPubkey = typeof mint === 'string' ? new PublicKey(mint) : mint;
+    const walletPubkey = wallet.publicKey || wallet;
+
+    // Calculate user token account
+    const userTokenAccount = await getAssociatedTokenAddress(
+      mintPubkey,
+      walletPubkey
+    );
+
+    // Calculate trade cooldown PDA
+    const [cooldown] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('trade_cooldown'),
+        mintPubkey.toBuffer(),
+        walletPubkey.toBuffer()
+      ],
+      this.sdk.programId
+    );
+
+    // Get cooldown account data
+    const cooldownAccountInfo = await this.sdk.connection.getAccountInfo(cooldown);
+    if (!cooldownAccountInfo) {
+      // Cooldown PDA does not exist, return status without throwing error
+      return {
+        isValid: false,
+        exists: false,
+        reason: 'COOLDOWN_NOT_EXISTS',
+        message: 'Cooldown PDA does not exist. User has never traded this token or needs to call approveTrade first.',
+        cooldownInfo: null,
+        tokenBalance: null,
+        accounts: {
+          mintAccount: mintPubkey,
+          userTokenAccount: userTokenAccount,
+          cooldown: cooldown,
+          wallet: walletPubkey,
+        }
+      };
+    }
+
+    const accountsCoder = new anchor.BorshAccountsCoder(this.sdk.program.idl);
+    let cooldownAccountData;
+    try {
+      cooldownAccountData = accountsCoder.decode('TradeCooldown', cooldownAccountInfo.data);
+    } catch (e1) {
+      try {
+        cooldownAccountData = accountsCoder.decode('tradeCooldown', cooldownAccountInfo.data);
+      } catch (e2) {
+        throw new Error(`Cannot decode cooldown account: ${e1.message}`);
+      }
+    }
+
+    // Get user's current token balance
+    let currentTokenBalance;
+    if (tokenBalance !== undefined && tokenBalance !== null) {
+      // Use provided token balance
+      if (anchor.BN.isBN(tokenBalance)) {
+        currentTokenBalance = tokenBalance;
+      } else {
+        currentTokenBalance = new anchor.BN(tokenBalance.toString());
+      }
+    } else {
+      // Fetch token balance from chain
+      const userTokenAccountInfo = await this.sdk.connection.getAccountInfo(userTokenAccount);
+      if (!userTokenAccountInfo) {
+        throw new Error(`User token account does not exist for mint: ${mint} and wallet: ${walletPubkey.toString()}`);
+      }
+
+      try {
+        // Fetch SPL token account balance
+        const tokenAccountInfo = await this.sdk.connection.getTokenAccountBalance(userTokenAccount);
+        currentTokenBalance = new anchor.BN(tokenAccountInfo.value.amount);
+      } catch (e) {
+        throw new Error(`Cannot fetch token balance: ${e.message}`);
+      }
+    }
+
+    // Compare approval_token_amount with current token balance
+    // Valid if approval_token_amount >= current token balance
+    const approvalTokenAmount = new anchor.BN(cooldownAccountData.approvalTokenAmount.toString());
+    const isValid = approvalTokenAmount.gte(currentTokenBalance);
+
+    // Return result
+    return {
+      isValid,
+      exists: true,
+      reason: isValid ? 'VALID' : 'AMOUNT_MISMATCH',
+      message: isValid
+        ? 'Cooldown validation passed. approval_token_amount >= token_balance'
+        : 'Cooldown validation failed. approval_token_amount < token_balance. User needs to call approveTrade.',
+      cooldownInfo: {
+        approvalTokenAmount: cooldownAccountData.approvalTokenAmount,
+        lastTradeTime: cooldownAccountData.lastTradeTime,
+        bump: cooldownAccountData.bump,
+      },
+      tokenBalance: currentTokenBalance,
+      accounts: {
+        mintAccount: mintPubkey,
+        userTokenAccount: userTokenAccount,
+        cooldown: cooldown,
+        wallet: walletPubkey,
       }
     };
   }

@@ -39,10 +39,10 @@ class FastModule {
   }
 
   /**
-   * Get token list (获取代币列表)
+   * Get token list
    * @param {Object} options - Query parameters
-   * @param {number} options.limit - Items per page, default 10 (每页数量，默认 10)
-   * @param {number} options.before_timestamp - Cursor for pagination (分页游标，Unix 时间戳)
+   * @param {number} options.limit - Items per page, default 10
+   * @param {number} options.before_timestamp - Cursor for pagination (Unix timestamp)
    * @returns {Promise<Object>} Token list data
    *
    * @example
@@ -88,8 +88,8 @@ class FastModule {
    * const page2 = await sdk.fast.mints({ limit: 5, before_timestamp: page1.data.next_cursor });
    *
    * // Access token data:
-   * const tokens = result.data.tokens; // 完整代币对象数组
-   * const mintAddresses = tokens.map(t => t.mint_account); // 提取代币地址
+   * const tokens = result.data.tokens; // Array of complete token objects
+   * const mintAddresses = tokens.map(t => t.mint_account); // Extract token addresses
    */
   async mints(options = {}) {
     const params = {
@@ -108,8 +108,8 @@ class FastModule {
   }
 
   /**
-   * Get token details (获取代币详情信息)
-   * @param {string} mint - Token mint address (代币地址)
+   * Get token details
+   * @param {string} mint - Token mint address
    * @returns {Promise<Object>} Token details data
    *
    * @example
@@ -152,7 +152,7 @@ class FastModule {
   async mint_info(mint) {
     // Validate input
     if (!mint || typeof mint !== 'string') {
-      throw new Error('mint_info: 代币地址必须是有效的字符串');
+      throw new Error('mint_info: token address must be a valid string');
     }
 
     return this._directApiCall({
@@ -163,11 +163,11 @@ class FastModule {
   }
 
   /**
-   * 直接API调用方法
+   * Direct API call method
    * @private
-   * @param {Object} config - 数据配置
-   * @param {Object} params - 请求参数
-   * @returns {Promise<Object>} API响应数据
+   * @param {Object} config - API configuration
+   * @param {Object} params - Request parameters
+   * @returns {Promise<Object>} API response data
    */
   async _directApiCall(config, params = {}) {
     // Ensure FastModule is properly configured before making API calls
@@ -188,49 +188,49 @@ class FastModule {
         url: url
       };
 
-      // 根据请求方法设置参数
+      // Set parameters based on request method
       if (config.method === 'POST') {
-        requestConfig.data = queryParams; // POST 请求使用 data
+        requestConfig.data = queryParams; // POST request uses data
       } else {
-        requestConfig.params = queryParams; // GET 请求使用 params
+        requestConfig.params = queryParams; // GET request uses params
       }
 
       const response = await this.httpClient.request(requestConfig);
 
-      // 检查新旧API响应格式
-      // 新格式: { code: 200, msg: "success", data: {...} }
-      // 旧格式: { success: true, data: {...}, message: "..." }
+      // Check new and old API response formats
+      // New format: { code: 200, msg: "success", data: {...} }
+      // Old format: { success: true, data: {...}, message: "..." }
       const isNewFormat = response.data && typeof response.data.code === 'number';
       const isOldFormat = response.data && typeof response.data.success === 'boolean';
 
       if (isNewFormat) {
-        // 新 API 格式
+        // New API format
         if (response.data.code !== 200) {
-          throw new Error(`API请求失败: ${response.data.msg || '未知错误'}`);
+          throw new Error(`API request failed: ${response.data.msg || 'unknown error'}`);
         }
       } else if (isOldFormat) {
-        // 旧 API 格式（向后兼容）
+        // Old API format (backward compatible)
         if (!response.data.success) {
-          throw new Error(`API请求失败: ${response.data.message || '未知错误'}`);
+          throw new Error(`API request failed: ${response.data.message || 'unknown error'}`);
         }
       } else {
-        // 未知格式
-        throw new Error('API返回格式无法识别');
+        // Unknown format
+        throw new Error('API response format not recognized');
       }
 
       return response.data;
 
     } catch (error) {
       if (error.response) {
-        // API返回错误
+        // API returned error
         const errorMsg = error.response.data?.msg || error.response.data?.message || error.message;
-        throw new Error(`API请求失败 [${error.response.status}]: ${errorMsg}`);
+        throw new Error(`API request failed [${error.response.status}]: ${errorMsg}`);
       } else if (error.request) {
-        // 网络错误
-        throw new Error(`网络请求失败: 无法连接到 ${this.baseUrl}`);
+        // Network error
+        throw new Error(`Network request failed: unable to connect to ${this.baseUrl}`);
       } else {
-        // 其他错误
-        throw new Error(`请求处理失败: ${error.message}`);
+        // Other errors
+        throw new Error(`Request processing failed: ${error.message}`);
       }
     }
   }
@@ -238,71 +238,71 @@ class FastModule {
 
 
   /**
-   * 获取订单数据 Get Orders Data (查询活跃订单 Active Orders)
-   * @param {string} mint - 代币地址 Token mint address
-   * @param {Object} options - 查询参数 Query parameters
-   * @param {string} options.type - 订单类型 Order type: "up_orders" (做空/short) 或 "down_orders" (做多/long)
-   * @param {number} options.page - 页码，默认1 Page number, default 1
-   * @param {number} options.limit - 每页数量，默认500 Items per page, default 500
-   * @returns {Promise<Object>} 订单数据，包含订单列表及分页信息 Order data with order list and pagination info
+   * Get Orders Data (Query active orders)
+   * @param {string} mint - Token mint address
+   * @param {Object} options - Query parameters
+   * @param {string} options.type - Order type: "up_orders" (short) or "down_orders" (long)
+   * @param {number} options.page - Page number, default 1
+   * @param {number} options.limit - Items per page, default 500
+   * @returns {Promise<Object>} Order data with order list and pagination info
    *
    * @example
-   * // 获取做多订单 Get long orders
+   * // Get long orders
    * const ordersData = await sdk.fast.orders('T3NFPvYvpULCTgrhHb4b4Sj5J1qtSNvyKZfE8hCvuKM', { type: 'down_orders' });
    *
-   * // 返回值示例 Return value example (compatible with chain.js format):
+   * // Return value example (compatible with chain.js format):
    * // {
    * //   "success": true,
    * //   "data": {
    * //     "orders": [
    * //       {
-   * //         "index": 0,                                            // 订单在 OrderBook 中的索引位置
-   * //         "user": "7621yjkZJ1jxBHw3oCPoazFfMx82NWBSARk2AGV7EBig",   // 用户地址
-   * //         "lock_lp_start_price": "2656104380242311276",          // LP 开始价格（字符串）
-   * //         "lock_lp_end_price": "2325402748045870207",            // LP 结束价格（字符串）
-   * //         "open_price": "2795899347623485554",                   // 开仓价格（字符串）
-   * //         "order_id": "0",                                       // 订单 ID（字符串）
-   * //         "lock_lp_sol_amount": 1880793407,                      // LP 锁定 SOL 数量（lamports）
-   * //         "lock_lp_token_amount": 75677963031921,                // LP 锁定代币数量（最小单位）
-   * //         "next_lp_sol_amount": 0,                               // Next LP SOL 数量
-   * //         "next_lp_token_amount": 0,                             // Next LP Token 数量
-   * //         "margin_init_sol_amount": 418211213,                   // 初始保证金
-   * //         "margin_sol_amount": 418211213,                        // 保证金 SOL 数量（lamports）
-   * //         "borrow_amount": 2276435100,                           // 借款数量（lamports）
-   * //         "position_asset_amount": 75677963031921,               // 持仓资产数量（最小单位）
-   * //         "realized_sol_amount": 0,                              // 已实现收益
-   * //         "version": 2,                                          // 版本号
-   * //         "start_time": 1764047379,                              // 开始时间（Unix 时间戳）
-   * //         "end_time": 1764652179,                                // 结束时间（Unix 时间戳）
-   * //         "next_order": 1,                                       // 链表中下一个订单索引 (65535=none)
-   * //         "prev_order": 65535,                                   // 链表中上一个订单索引 (65535=none)
-   * //         "borrow_fee": 1200,                                    // 借款费用（基点，1200 = 12%）
-   * //         "order_type": "down_orders"                            // 订单类型（字符串）
+   * //         "index": 0,                                            // Order index position in OrderBook
+   * //         "user": "7621yjkZJ1jxBHw3oCPoazFfMx82NWBSARk2AGV7EBig",   // User address
+   * //         "lock_lp_start_price": "2656104380242311276",          // LP start price (string)
+   * //         "lock_lp_end_price": "2325402748045870207",            // LP end price (string)
+   * //         "open_price": "2795899347623485554",                   // Open position price (string)
+   * //         "order_id": "0",                                       // Order ID (string)
+   * //         "lock_lp_sol_amount": 1880793407,                      // LP locked SOL amount (lamports)
+   * //         "lock_lp_token_amount": 75677963031921,                // LP locked token amount (minimum unit)
+   * //         "next_lp_sol_amount": 0,                               // Next LP SOL amount
+   * //         "next_lp_token_amount": 0,                             // Next LP token amount
+   * //         "margin_init_sol_amount": 418211213,                   // Initial margin
+   * //         "margin_sol_amount": 418211213,                        // Margin SOL amount (lamports)
+   * //         "borrow_amount": 2276435100,                           // Borrow amount (lamports)
+   * //         "position_asset_amount": 75677963031921,               // Position asset amount (minimum unit)
+   * //         "realized_sol_amount": 0,                              // Realized profit/loss
+   * //         "version": 2,                                          // Version number
+   * //         "start_time": 1764047379,                              // Start time (Unix timestamp)
+   * //         "end_time": 1764652179,                                // End time (Unix timestamp)
+   * //         "next_order": 1,                                       // Next order index in linked list (65535=none)
+   * //         "prev_order": 65535,                                   // Previous order index in linked list (65535=none)
+   * //         "borrow_fee": 1200,                                    // Borrow fee (basis points, 1200 = 12%)
+   * //         "order_type": "down_orders"                            // Order type (string)
    * //       }
    * //     ],
-   * //     "total": 10,                                               // 总订单数量 (total_count)
-   * //     "order_type": "down_orders",                               // 订单类型（字符串）
-   * //     "mint_account": "T3NFPvYvpULCTgrhHb4b4Sj5J1qtSNvyKZfE8hCvuKM", // 查询的代币地址
-   * //     "page": 1,                                                 // 当前页码
-   * //     "limit": 3,                                                // 每页限制
-   * //     "has_next": true,                                          // 是否有下一页
-   * //     "has_prev": false                                          // 是否有上一页
+   * //     "total": 10,                                               // Total order count (total_count)
+   * //     "order_type": "down_orders",                               // Order type (string)
+   * //     "mint_account": "T3NFPvYvpULCTgrhHb4b4Sj5J1qtSNvyKZfE8hCvuKM", // Queried token address
+   * //     "page": 1,                                                 // Current page number
+   * //     "limit": 3,                                                // Per-page limit
+   * //     "has_next": true,                                          // Whether next page exists
+   * //     "has_prev": false                                          // Whether previous page exists
    * //   },
-   * //   "message": "Operation successful"                            // 操作结果消息
+   * //   "message": "Operation successful"                            // Operation result message
    * // }
    *
-   * // 访问订单数据 Access order data:
-   * const orders = ordersData.data.orders;                        // 订单数组
-   * const totalOrders = ordersData.data.total;                    // 总订单数量
-   * const firstOrder = orders[0];                                 // 第一个订单
-   * const userAddress = firstOrder.user;                          // 用户地址
-   * const marginAmount = firstOrder.margin_sol_amount;            // 保证金数量（lamports）
-   * const borrowFee = firstOrder.borrow_fee;                      // 借款费用（基点）
+   * // Access order data:
+   * const orders = ordersData.data.orders;                        // Order array
+   * const totalOrders = ordersData.data.total;                    // Total order count
+   * const firstOrder = orders[0];                                 // First order
+   * const userAddress = firstOrder.user;                          // User address
+   * const marginAmount = firstOrder.margin_sol_amount;            // Margin amount (lamports)
+   * const borrowFee = firstOrder.borrow_fee;                      // Borrow fee (basis points)
    *
-   * // 获取做空订单 Get short orders:
+   * // Get short orders:
    * const shortOrders = await sdk.fast.orders(mint, { type: 'up_orders' });
    *
-   * // 分页获取订单 Get paginated orders:
+   * // Get paginated orders:
    * const pageTwo = await sdk.fast.orders(mint, { type: 'down_orders', page: 2, limit: 100 });
    */
   async orders(mint, options = {}) {
@@ -352,11 +352,11 @@ class FastModule {
       const isNewFormat = response.data && typeof response.data.code === 'number';
 
       if (!isNewFormat) {
-        throw new Error('API返回格式无法识别');
+        throw new Error('API response format not recognized');
       }
 
       if (response.data.code !== 200) {
-        throw new Error(`API请求失败: ${response.data.msg || '未知错误'}`);
+        throw new Error(`API request failed: ${response.data.msg || 'unknown error'}`);
       }
 
       // Transform new API format to match chain.js format for compatibility
@@ -370,28 +370,28 @@ class FastModule {
         // User address
         user: order.user,
 
-        // Price fields (keep as strings)
-        lock_lp_start_price: order.lock_lp_start_price,
-        lock_lp_end_price: order.lock_lp_end_price,
-        open_price: order.open_price,
+        // Price fields (ensure strings)
+        lock_lp_start_price: String(order.lock_lp_start_price),
+        lock_lp_end_price: String(order.lock_lp_end_price),
+        open_price: String(order.open_price),
 
         // Order ID (ensure string)
-        order_id: order.order_id != null ? order.order_id.toString() : undefined,
+        order_id: order.order_id != null ? String(order.order_id) : undefined,
 
-        // Amount fields
-        lock_lp_sol_amount: order.lock_lp_sol_amount,
-        lock_lp_token_amount: order.lock_lp_token_amount,
-        next_lp_sol_amount: order.next_lp_sol_amount,
-        next_lp_token_amount: order.next_lp_token_amount,
+        // Amount fields (ensure strings) - Fix precision issue
+        lock_lp_sol_amount: String(order.lock_lp_sol_amount),
+        lock_lp_token_amount: String(order.lock_lp_token_amount),
+        next_lp_sol_amount: String(order.next_lp_sol_amount),
+        next_lp_token_amount: String(order.next_lp_token_amount),
 
-        // Margin fields
-        margin_init_sol_amount: order.margin_init_sol_amount,
-        margin_sol_amount: order.margin_sol_amount,
+        // Margin fields (ensure strings) - Fix precision issue
+        margin_init_sol_amount: String(order.margin_init_sol_amount),
+        margin_sol_amount: String(order.margin_sol_amount),
 
-        // Position fields
-        borrow_amount: order.borrow_amount,
-        position_asset_amount: order.position_asset_amount,
-        realized_sol_amount: order.realized_sol_amount,
+        // Position fields (ensure strings) - Fix precision issue
+        borrow_amount: String(order.borrow_amount),
+        position_asset_amount: String(order.position_asset_amount),
+        realized_sol_amount: String(order.realized_sol_amount),
 
         // Version
         version: order.version,
@@ -416,17 +416,17 @@ class FastModule {
       }));
 
       // Sort orders by lock_lp_start_price
-      // down_orders (做多): descending order (从大到小)
-      // up_orders (做空): ascending order (从小到大)
+      // down_orders (long): descending order (largest to smallest)
+      // up_orders (short): ascending order (smallest to largest)
       processedOrders.sort((a, b) => {
         const priceA = BigInt(a.lock_lp_start_price);
         const priceB = BigInt(b.lock_lp_start_price);
 
         if (type === 'down_orders') {
-          // 做多订单：从大到小排列
+          // Long orders: sorted from large to small
           return priceB > priceA ? 1 : (priceB < priceA ? -1 : 0);
         } else {
-          // 做空订单：从小到大排列
+          // Short orders: sorted from small to large
           return priceA > priceB ? 1 : (priceA < priceB ? -1 : 0);
         }
       });
@@ -451,21 +451,21 @@ class FastModule {
       if (error.response) {
         // API returned error
         const errorMsg = error.response.data?.msg || error.response.data?.message || error.message;
-        throw new Error(`API请求失败 [${error.response.status}]: ${errorMsg}`);
+        throw new Error(`API request failed [${error.response.status}]: ${errorMsg}`);
       } else if (error.request) {
         // Network error
-        throw new Error(`网络请求失败: 无法连接到 ${this.baseUrl}`);
+        throw new Error(`Network request failed: unable to connect to ${this.baseUrl}`);
       } else {
         // Other errors
-        throw new Error(`请求处理失败: ${error.message}`);
+        throw new Error(`Request processing failed: ${error.message}`);
       }
     }
   }
 
   /**
-   * Get token price (获取代币价格)
-   * @param {string} mint - Token mint address (代币地址)
-   * @returns {Promise<string>} Latest price string (最新价格字符串)
+   * Get token price
+   * @param {string} mint - Token mint address
+   * @returns {Promise<string>} Latest price string
    *
    * @example
    * // Get token latest price
@@ -475,25 +475,25 @@ class FastModule {
   async price(mint) {
     // Validate input
     if (!mint || typeof mint !== 'string') {
-      throw new Error('price: 代币地址必须是有效的字符串 mint address must be a valid string');
+      throw new Error('price: mint address must be a valid string');
     }
 
     // Call mint_info API
     const result = await this.mint_info(mint);
 
-    // Check return data (新格式: { code: 200, msg: "success", data: {...} })
+    // Check return data (new format: { code: 200, msg: "success", data: {...} })
     if (!result || !result.data) {
-      throw new Error('price: 无法获取代币信息 Unable to fetch token information');
+      throw new Error('price: unable to fetch token information');
     }
 
-    // Extract latest price (新格式直接返回对象，不是数组)
+    // Extract latest price (new format returns object directly, not an array)
     let latestPrice = result.data.latest_price;
 
     if (!latestPrice) {
       // If no price data, calculate initial price
       const initialPrice = CurveAMM.getInitialPrice();
       if (initialPrice === null) {
-        throw new Error('price: 无法计算初始价格 Unable to calculate initial price');
+        throw new Error('price: unable to calculate initial price');
       }
       latestPrice = initialPrice.toString();
     }
@@ -502,16 +502,16 @@ class FastModule {
   }
 
   /**
-   * Get User Active Orders (获取用户活跃订单)
+   * Get User Active Orders
    * Compatible with chain.js user_orders() method
    *
-   * @param {string} user - User wallet address (用户钱包地址)
-   * @param {string} mint - Token mint address (optional, null/undefined for all tokens) (代币地址，可选)
-   * @param {Object} options - Query parameters (查询参数)
-   * @param {string} options.direction - Order direction (optional: 'up'=short, 'dn'=long, omit=all) (订单方向)
-   * @param {number} options.page - Page number, default 1 (页码，默认1)
-   * @param {number} options.limit - Items per page, default 20 (每页数量，默认20)
-   * @param {string} options.order_by - Sort order: 'start_time_desc' or 'start_time_asc', default 'start_time_desc' (排序方式)
+   * @param {string} user - User wallet address
+   * @param {string} mint - Token mint address (optional, null/undefined for all tokens)
+   * @param {Object} options - Query parameters
+   * @param {string} options.direction - Order direction (optional: 'up'=short, 'dn'=long, omit=all)
+   * @param {number} options.page - Page number, default 1
+   * @param {number} options.limit - Items per page, default 20
+   * @param {string} options.order_by - Sort order: 'start_time_desc' or 'start_time_asc', default 'start_time_desc'
    * @returns {Promise<Object>} User orders data compatible with chain.js format
    *
    * @example
@@ -631,11 +631,11 @@ class FastModule {
       const isNewFormat = response.data && typeof response.data.code === 'number';
 
       if (!isNewFormat) {
-        throw new Error('API返回格式无法识别');
+        throw new Error('API response format not recognized');
       }
 
       if (response.data.code !== 200) {
-        throw new Error(`API请求失败: ${response.data.msg || '未知错误'}`);
+        throw new Error(`API request failed: ${response.data.msg || 'unknown error'}`);
       }
 
       // Transform to chain.js compatible format
@@ -650,28 +650,28 @@ class FastModule {
         mint: order.mint,
         user: order.user,
 
-        // Price fields (keep as strings)
-        lock_lp_start_price: order.lock_lp_start_price,
-        lock_lp_end_price: order.lock_lp_end_price,
-        open_price: order.open_price,
+        // Price fields (ensure strings)
+        lock_lp_start_price: String(order.lock_lp_start_price),
+        lock_lp_end_price: String(order.lock_lp_end_price),
+        open_price: String(order.open_price),
 
         // Order ID (ensure string)
-        order_id: order.order_id != null ? order.order_id.toString() : undefined,
+        order_id: order.order_id != null ? String(order.order_id) : undefined,
 
-        // Amount fields
-        lock_lp_sol_amount: order.lock_lp_sol_amount,
-        lock_lp_token_amount: order.lock_lp_token_amount,
-        next_lp_sol_amount: order.next_lp_sol_amount,
-        next_lp_token_amount: order.next_lp_token_amount,
+        // Amount fields (ensure strings) - Fix precision issue
+        lock_lp_sol_amount: String(order.lock_lp_sol_amount),
+        lock_lp_token_amount: String(order.lock_lp_token_amount),
+        next_lp_sol_amount: String(order.next_lp_sol_amount),
+        next_lp_token_amount: String(order.next_lp_token_amount),
 
-        // Margin fields
-        margin_init_sol_amount: order.margin_init_sol_amount,
-        margin_sol_amount: order.margin_sol_amount,
+        // Margin fields (ensure strings) - Fix precision issue
+        margin_init_sol_amount: String(order.margin_init_sol_amount),
+        margin_sol_amount: String(order.margin_sol_amount),
 
-        // Position fields
-        borrow_amount: order.borrow_amount,
-        position_asset_amount: order.position_asset_amount,
-        realized_sol_amount: order.realized_sol_amount,
+        // Position fields (ensure strings) - Fix precision issue
+        borrow_amount: String(order.borrow_amount),
+        position_asset_amount: String(order.position_asset_amount),
+        realized_sol_amount: String(order.realized_sol_amount),
 
         // Time fields
         start_time: order.start_time,
@@ -717,11 +717,11 @@ class FastModule {
     } catch (error) {
       if (error.response) {
         const errorMsg = error.response.data?.msg || error.response.data?.message || error.message;
-        throw new Error(`API请求失败 [${error.response.status}]: ${errorMsg}`);
+        throw new Error(`API request failed [${error.response.status}]: ${errorMsg}`);
       } else if (error.request) {
-        throw new Error(`网络请求失败: 无法连接到 ${this.baseUrl}`);
+        throw new Error(`Network request failed: unable to connect to ${this.baseUrl}`);
       } else {
-        throw new Error(`请求处理失败: ${error.message}`);
+        throw new Error(`Request processing failed: ${error.message}`);
       }
     }
   }

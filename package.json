@@ -1,6 +1,6 @@
 {
   "name": "pinpet-sdk",
-  "version": "0.1.2",
+  "version": "2.1.6",
   "description": "Solana PinPet.fun SDK",
   "main": "dist/pinpet-sdk.cjs.js",
   "module": "dist/pinpet-sdk.esm.js",

@@ -1,25 +1,16 @@
 const anchor = require('@coral-xyz/anchor');
 const { PublicKey } = require('@solana/web3.js');
-// 统一使用 buffer 包，所有平台一致
+// Use unified buffer package for consistency across all platforms
 const { Buffer } = require('buffer');
 
-// 环境检测和条件加载
+// Environment detection and conditional loading
 const IS_NODE = typeof process !== 'undefined' && process.versions && process.versions.node;
 
-// 确保全局可用（兼容现有代码）
+// Ensure global availability (compatible with existing code)
 if (typeof global !== 'undefined' && !global.Buffer) {
   global.Buffer = Buffer;
 }
 
-let fs, path;
-if (IS_NODE) {
-  try {
-    fs = require('fs');
-    path = require('path'); 
-  } catch (e) {
-    console.warn('File system modules not available');
-  }
-}
 const TradingModule = require('./modules/trading');
 const TokenModule = require('./modules/token');
 const ParamModule = require('./modules/param');
@@ -75,15 +66,8 @@ class PinPetSdk {
     // Maximum number of orders to fetch during queries
     this.FIND_MAX_ORDERS_COUNT = 1000
 
-    // 在流动性不足时, 建议实际使用流动性的比例, 分每 (1000=100%)
+    // When liquidity is insufficient, the suggested ratio of actual liquidity to use, per 1000 (1000=100%)
     this.SUGGEST_LIQ_RATIO = 975; // 97.5% (1000=100%)
-
-    // 只在 Node.js 环境中启用调试日志
-    this.debugLogPath = IS_NODE && fs ? (this.options.debugLogPath || null) : null;
-    
-    // 初始化调试文件
-    this._initDebugFiles();
-
 
     // Initialize Anchor program
     this.program = this._initProgram(this.options);
@@ -101,20 +85,19 @@ class PinPetSdk {
     this.curve = CurveAMM;
     
     /**
-     * 统一数据接口 - 根据 defaultDataSource 配置自动路由到 fast 或 chain 模块
      * Unified data interface - automatically routes to fast or chain module based on defaultDataSource config
-     * 
+     *
      * @example
-     * // 使用默认数据源获取订单
+     * // Get orders using default data source
      * const ordersData = await sdk.data.orders(mint, { type: 'down_orders' });
-     * 
-     * // 临时指定数据源
-     * const ordersData = await sdk.data.orders(mint, { 
+     *
+     * // Temporarily specify data source
+     * const ordersData = await sdk.data.orders(mint, {
      *   type: 'down_orders',
-     *   dataSource: 'chain'  // 临时使用链上数据源
+     *   dataSource: 'chain'  // Temporarily use on-chain data source
      * });
-     * 
-     * // 获取用户订单
+     *
+     * // Get user orders
      * const userOrders = await sdk.data.user_orders(user, mint, {
      *   page: 1,
      *   limit: 200,
@@ -123,27 +106,27 @@ class PinPetSdk {
      */
     this.data = {
       /**
-       * 获取代币订单数据
-       * @param {string} mint - 代币地址
-       * @param {Object} options - 查询参数，支持 dataSource 字段临时指定数据源
-       * @returns {Promise<Object>} 订单数据
+       * Get token order data
+       * @param {string} mint - Token address
+       * @param {Object} options - Query parameters, supports dataSource field to temporarily specify data source
+       * @returns {Promise<Object>} Order data
        */
       orders: (mint, options = {}) => this._getDataWithSource('orders', [mint, options]),
-      
+
       /**
-       * 获取代币价格数据
-       * @param {string} mint - 代币地址
-       * @param {Object} options - 查询参数，支持 dataSource 字段临时指定数据源
-       * @returns {Promise<string>} 价格字符串
+       * Get token price data
+       * @param {string} mint - Token address
+       * @param {Object} options - Query parameters, supports dataSource field to temporarily specify data source
+       * @returns {Promise<string>} Price string
        */
       price: (mint, options = {}) => this._getDataWithSource('price', [mint, options]),
-      
+
       /**
-       * 获取用户订单数据
-       * @param {string} user - 用户地址
-       * @param {string} mint - 代币地址
-       * @param {Object} options - 查询参数，支持 dataSource 字段临时指定数据源
-       * @returns {Promise<Object>} 用户订单数据
+       * Get user order data
+       * @param {string} user - User address
+       * @param {string} mint - Token address
+       * @param {Object} options - Query parameters, supports dataSource field to temporarily specify data source
+       * @returns {Promise<Object>} User order data
        */
       user_orders: (user, mint, options = {}) => this._getDataWithSource('user_orders', [user, mint, options])
     };
@@ -182,52 +165,6 @@ class PinPetSdk {
     return new anchor.Program(spinpetIdl, this.programId);
   }
 
-
-  // ========== Debug File Management Methods ==========
-
-  /**
-   * 初始化调试文件，删除旧文件
-   * Initialize debug files, delete old files
-   * @private
-   */
-  _initDebugFiles() {
-    if (!this.debugLogPath || !IS_NODE || !fs || !path) {
-      return; // 浏览器环境或文件系统不可用
-    }
-
-    try {
-      const files = ['orderPda.txt', 'orderOpen.txt'];
-      files.forEach(file => {
-        const filePath = path.join(this.debugLogPath, file);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      });
-    } catch (error) {
-      console.warn('Warning: Failed to initialize debug files:', error.message);
-    }
-  }
-
-  /**
-   * 安全地写入调试日志
-   * Safely write debug log
-   * @private
-   * @param {string} fileName - 文件名
-   * @param {string} content - 内容
-   */
-  _writeDebugLog(fileName, content) {
-    if (!this.debugLogPath || !IS_NODE || !fs || !path) {
-      return; // 静默失败，不报错
-    }
-
-    try {
-      const filePath = path.join(this.debugLogPath, fileName);
-      fs.appendFileSync(filePath, content);
-    } catch (error) {
-      console.warn(`Warning: Failed to write debug log to ${fileName}:`, error.message);
-    }
-  }
-
   // ========== Unified Data Interface Routing Method ==========
 
   /**
@@ -254,5 +191,9 @@ class PinPetSdk {
   }
 
 }
+
+// Add utility classes as static properties to PinPetSdk class
+PinPetSdk.CurveAMM = CurveAMM;
+PinPetSdk.OrderUtils = OrderUtils;
 
 module.exports = PinPetSdk;

@@ -126,10 +126,9 @@
                 // 初始化 SDK
                 const sdk = new SpinSDK.PinPetSdk(connection, 'TestProgramId', options);
                 
-                addResult('✅ SDK Initialization Test', 
+                addResult('✅ SDK Initialization Test',
                     `SDK initialized successfully!\n` +
                     `Data source: ${sdk.defaultDataSource}\n` +
-                    `Debug log path: ${sdk.debugLogPath}\n` +
                     `Max orders count: ${sdk.MAX_ORDERS_COUNT}`, 'success');
                     
                 updateStatus('SDK initialization test completed successfully!', 'success');

@@ -21,10 +21,9 @@ class SimulatorModule {
 
     /**
      * Simulate token buy transaction - calculate if target token amount can be purchased
-     * 模拟以 Token 数量为目标的买入交易 - 计算是否能买到指定数量的 Token
-     * @param {string} mint - Token address 代币地址
-     * @param {bigint|string|number} buyTokenAmount - Target token amount to buy 目标购买的 Token 数量
-     * @param {string} passOrder - Optional order address to skip (won't be liquidated) 可选的跳过订单地址
+     * @param {string} mint - Token address
+     * @param {bigint|string|number} buyTokenAmount - Target token amount to buy
+     * @param {string} passOrder - Optional order address to skip (won't be liquidated)
      * @param {Object|null} lastPrice - Token price info, default null
      * @param {Object|null} ordersData - Orders response object, default null
      * @returns {Promise<Object>} Token buy simulation result with the following structure:
@@ -50,8 +49,8 @@ class SimulatorModule {
     /**
      * Simulate token sell transaction analysis
      * @param {string} mint - Token address
-     * @param {bigint|string|number} sellTokenAmount - Token amount to sell (u64 format, precision 10^6)
-     * @param {string} passOrder - Optional order address to skip (won't be liquidated) 可选的跳过订单地址
+     * @param {bigint|string|number} sellTokenAmount - Token amount to sell (u64 format, precision 10^9)
+     * @param {string} passOrder - Optional order address to skip (won't be liquidated)
      * @param {Object|null} lastPrice - Token price info, default null
      * @param {Object|null} ordersData - Orders response object, default null
      * @returns {Promise<Object>} Token sell simulation result with the following structure:
@@ -77,7 +76,7 @@ class SimulatorModule {
     /**
      * Simulate long position stop loss calculation
      * @param {string} mint - Token address
-     * @param {bigint|string|number} buyTokenAmount - Token amount to buy for long position (u64 format, precision 10^6)
+     * @param {bigint|string|number} buyTokenAmount - Token amount to buy for long position (u64 format, precision 10^9)
      * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format)
      * @param {Object|null} lastPrice - Token info, default null
      * @param {Object|null} ordersData - Orders data, default null
@@ -90,7 +89,7 @@ class SimulatorModule {
     /**
      * Simulate short position stop loss calculation
      * @param {string} mint - Token address
-     * @param {bigint|string|number} sellTokenAmount - Token amount to sell for short position (u64 format, precision 10^6)
+     * @param {bigint|string|number} sellTokenAmount - Token amount to sell for short position (u64 format, precision 10^9)
      * @param {bigint|string|number} stopLossPrice - User desired stop loss price (u128 format)
      * @param {Object|null} lastPrice - Token info, default null
      * @param {Object|null} ordersData - Orders data, default null
@@ -130,11 +129,10 @@ class SimulatorModule {
 
     /**
      * Generate candidate insertion indices for closing long position
-     * 为做多平仓生成候选插入索引
-     * @param {string} mint - Token address 代币地址
-     * @param {number|string|anchor.BN} closeOrderId - Order ID to close (order_id, not index) 要平仓的订单ID
-     * @param {Object|null} ordersData - Orders data (optional) 订单数据（可选）
-     * @returns {Promise<Object>} Result containing closeOrderIndices array 包含候选索引数组的结果
+     * @param {string} mint - Token address
+     * @param {number|string|anchor.BN} closeOrderId - Order ID to close (order_id, not index)
+     * @param {Object|null} ordersData - Orders data (optional)
+     * @returns {Promise<Object>} Result containing closeOrderIndices array
      */
     async simulateLongClose(mint, closeOrderId, ordersData = null) {
         return simulateLongClose.call(this, mint, closeOrderId, ordersData);
@@ -142,11 +140,10 @@ class SimulatorModule {
 
     /**
      * Generate candidate insertion indices for closing short position
-     * 为做空平仓生成候选插入索引
-     * @param {string} mint - Token address 代币地址
-     * @param {number|string|anchor.BN} closeOrderId - Order ID to close (order_id, not index) 要平仓的订单ID
-     * @param {Object|null} ordersData - Orders data (optional) 订单数据（可选）
-     * @returns {Promise<Object>} Result containing closeOrderIndices array 包含候选索引数组的结果
+     * @param {string} mint - Token address
+     * @param {number|string|anchor.BN} closeOrderId - Order ID to close (order_id, not index)
+     * @param {Object|null} ordersData - Orders data (optional)
+     * @returns {Promise<Object>} Result containing closeOrderIndices array
      */
     async simulateShortClose(mint, closeOrderId, ordersData = null) {
         return simulateShortClose.call(this, mint, closeOrderId, ordersData);
@@ -154,8 +151,7 @@ class SimulatorModule {
 
     /**
      * Simulate buy transaction with SOL amount input
-     * 模拟以 SOL 金额为输入的买入交易
-     * @param {string} mint - Token address 代币地址
+     * @param {string} mint - Token address
      * @param {bigint|string|number} buySolAmount - SOL amount to spend (u64 format, lamports)
      * @returns {Promise<Object>} Buy simulation result with the following structure:
      *   - success: {boolean} Whether the simulation was successful
@@ -225,7 +221,7 @@ class SimulatorModule {
             // price is u128 with 28 decimal places encoded
             const priceDecimal = CurveAMM.u128ToDecimal(currentPrice);
             const solInDecimal = Number(solAmountBigInt) / 1e9; // Convert lamports to SOL
-            const estimatedTokenAmount = BigInt(Math.floor((solInDecimal / priceDecimal) * 1e6)); // Convert to token lamports
+            const estimatedTokenAmount = BigInt(Math.floor((solInDecimal / priceDecimal) * 1e9)); // Convert to token lamports (9-digit precision)
 
             // Call simulateTokenBuy with estimated amount
             const tokenBuyResult = await this.simulateTokenBuy(mint, estimatedTokenAmount, null, priceResult, ordersResult);
@@ -264,8 +260,7 @@ class SimulatorModule {
 
     /**
      * Simulate sell transaction with token amount input
-     * 模拟以 Token 数量为输入的卖出交易
-     * @param {string} mint - Token address 代币地址
+     * @param {string} mint - Token address
      * @param {bigint|string|number} sellTokenAmount - Token amount to sell (u64 format, lamports)
      * @returns {Promise<Object>} Sell simulation result with the following structure:
      *   - success: {boolean} Whether the simulation was successful
@@ -335,7 +330,7 @@ class SimulatorModule {
 
             // Estimate ideal SOL amount
             const priceDecimal = CurveAMM.u128ToDecimal(currentPrice);
-            const tokenInDecimal = Number(tokenAmountBigInt) / 1e6; // Convert token lamports to tokens
+            const tokenInDecimal = Number(tokenAmountBigInt) / 1e9; // Convert token lamports to tokens (9-digit precision)
             const estimatedSolAmount = BigInt(Math.floor((tokenInDecimal * priceDecimal) * 1e9)); // Convert to SOL lamports
 
             // Transform result to match simulateSell format

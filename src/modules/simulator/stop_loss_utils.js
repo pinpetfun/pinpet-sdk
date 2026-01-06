@@ -23,8 +23,8 @@ function transformOrdersData(ordersData) {
     lock_lp_end_price: BigInt(order.lock_lp_end_price),
     lock_lp_sol_amount: order.lock_lp_sol_amount,
     lock_lp_token_amount: order.lock_lp_token_amount,
-    index: order.index,           // 保留 OrderBook 中的索引
-    order_id: order.order_id       // 保留订单ID
+    index: order.index,           // Preserve OrderBook index
+    order_id: order.order_id       // Preserve order ID
   }));
 }
 
@@ -33,164 +33,167 @@ function transformOrdersData(ordersData) {
  * @property {number} order_type - Order type (e.g., 1 for down_orders, 2 for up_orders).
  * @property {bigint} lock_lp_start_price - Locked liquidity start price.
  * @property {bigint} lock_lp_end_price - Locked liquidity end price.
- * @property {number} lock_lp_sol_amount - 锁定的SOL数量。
- * @property {number} lock_lp_token_amount - 锁定的代币数量。
+ * @property {number} lock_lp_sol_amount - Locked SOL amount.
+ * @property {number} lock_lp_token_amount - Locked token amount.
  */
 
 /**
  * @typedef {Object} OverlapResult
- * @property {boolean} no_overlap - 是否没有重叠。`true` 表示没有重叠（可以安全插入），`false` 表示有重叠。
- * @property {number[]} close_insert_indices - 平仓时插入订单簿的位置索引数组。包含主位置索引及其前后3个节点的索引。
- * @property {string} overlap_reason - 重叠原因说明。当没有重叠时为空字符串，有重叠时说明具体原因。
+ * @property {boolean} no_overlap - Whether there is no overlap. `true` means no overlap (safe to insert), `false` means there is overlap.
+ * @property {number[]} close_insert_indices - Array of position indices for inserting into order book at close. Contains main position index and indices of 3 nodes before and after.
+ * @property {string} overlap_reason - Description of overlap reason. Empty string when no overlap, describes specific reason when overlap exists.
  */
 
 /**
- * 检查给定价格区间是否与已排序的订单列表中的任何区间发生重叠，并返回合适的插入位置索引。
+ * Check if a given price range overlaps with any range in a sorted order list,
+ * and return appropriate insertion position indices.
  *
- * ## 功能说明
- * 此函数用于保证金交易（long/short）场景，在开仓时需要确定平仓订单应该插入到订单簿（OrderBook）的哪个位置。
- * 函数会检查新订单的价格区间是否与现有订单重叠，并返回多个候选插入位置索引，以提高合约执行成功率。
+ * ## Function Description
+ * This function is used for margin trading (long/short) scenarios. When opening a position,
+ * it determines where the closing order should be inserted in the OrderBook.
+ * The function checks if the new order's price range overlaps with existing orders and
+ * returns multiple candidate insertion position indices to improve contract execution success rate.
  *
- * ## 核心逻辑
- * 1. **价格区间检查**：使用二分查找算法在已排序的订单列表中查找合适的插入位置
- * 2. **重叠检测**：
- *    - 基础重叠：新区间与现有订单的价格区间直接重叠
- *    - 流动性预留重叠：考虑到流动性预留区域（默认100%），防止价格区间过于接近
- * 3. **候选索引生成**：
- *    - 主插入位置：逻辑上最合适的插入位置索引
- *    - 备选位置：该位置前后各若干个节点的索引（数量由 MAX_CANDIDATE_INDICES 常量决定）
- *    - 目的：即使主位置的订单被删除或移动，合约也能找到其他合适位置
+ * ## Core Logic
+ * 1. **Price Range Check**: Uses binary search algorithm to find suitable insertion position in sorted order list
+ * 2. **Overlap Detection**:
+ *    - Basic overlap: new range directly overlaps with existing order's price range
+ *    - Liquidity reservation overlap: considers liquidity reservation area (default 100%), prevents too-close ranges
+ * 3. **Candidate Index Generation**:
+ *    - Main insertion position: logically most suitable insertion position index
+ *    - Alternative positions: indices of nodes before and after this position (quantity determined by MAX_CANDIDATE_INDICES)
+ *    - Purpose: even if main position order is deleted or moved, contract can find other suitable positions
  *
- * ## 返回值说明
- * - **无重叠时**：返回 `close_insert_indices` 数组，包含候选插入位置的 OrderBook 索引
- *   - 优先级：主位置 → 前1个 → 后1个 → 前2个 → 后2个 → ... → 前N个 → 后N个
- *   - 索引数量由 MAX_CANDIDATE_INDICES 常量决定（默认21个，即主位置+前10个+后10个）
- * - **有重叠时**：返回空数组 `[]`，表示无法插入
- * - **空订单簿**：返回 `[65535]` (u16::MAX)，表示插入到头部
+ * ## Return Value Explanation
+ * - **No overlap**: returns `close_insert_indices` array with OrderBook indices of candidate insertion positions
+ *   - Priority: main position → before 1 → after 1 → before 2 → after 2 → ... → before N → after N
+ *   - Index quantity determined by MAX_CANDIDATE_INDICES constant (default 21: main position + 10 before + 10 after)
+ * - **With overlap**: returns empty array `[]`, indicating cannot insert
+ * - **Empty order book**: returns `[65535]` (u16::MAX), indicating insert at head
  *
- * ## 订单类型规则
- * - **down_orders（做多订单）**：价格从高到低排序
- *   - lock_lp_start_price > lock_lp_end_price（价格下跌）
- *   - 新订单的 end_price 必须 >= 下一个订单的 start_price
- * - **up_orders（做空订单）**：价格从低到高排序
- *   - lock_lp_start_price < lock_lp_end_price（价格上涨）
- *   - 新订单的 end_price 必须 <= 下一个订单的 start_price
+ * ## Order Type Rules
+ * - **down_orders (long orders)**: prices sorted from high to low
+ *   - lock_lp_start_price > lock_lp_end_price (price decreases)
+ *   - New order's end_price must be >= next order's start_price
+ * - **up_orders (short orders)**: prices sorted from low to high
+ *   - lock_lp_start_price < lock_lp_end_price (price increases)
+ *   - New order's end_price must be <= next order's start_price
  *
- * @param {'down_orders' | 'up_orders'} order_type - 订单类型
- *   - 'down_orders': 做多订单，价格从高到低排序
- *   - 'up_orders': 做空订单，价格从低到高排序
+ * @param {'down_orders' | 'up_orders'} order_type - Order type
+ *   - 'down_orders': long orders, prices sorted high to low
+ *   - 'up_orders': short orders, prices sorted low to high
  *
- * @param {Order[]} order_list - 已排序的订单对象数组
- *   - 每个订单必须包含以下字段：
- *     - `index` {number}: 订单在 OrderBook 中的原始索引值（这是合约需要的关键字段）
- *     - `lock_lp_start_price` {bigint|string}: 锁定流动池区间起始价格
- *     - `lock_lp_end_price` {bigint|string}: 锁定流动池区间结束价格
- *   - 数组必须已按价格排序（down_orders 从高到低，up_orders 从低到高）
- *   - 通常来自 `sdk.chain.orders()` 或 `sdk.fast.orders()` 的返回数据
+ * @param {Order[]} order_list - Array of sorted order objects
+ *   - Each order must contain:
+ *     - `index` {number}: original index in OrderBook (critical field needed by contract)
+ *     - `lock_lp_start_price` {bigint|string}: locked liquidity pool range start price
+ *     - `lock_lp_end_price` {bigint|string}: locked liquidity pool range end price
+ *   - Array must be sorted by price (down_orders high to low, up_orders low to high)
+ *   - Usually from `sdk.chain.orders()` or `sdk.fast.orders()` return data
  *
- * @param {bigint | number | string} lp_start_price - 新订单的起始价格
- *   - 对于 down_orders：这是较高的价格（开仓价附近）
- *   - 对于 up_orders：这是较低的价格（止损价附近）
+ * @param {bigint | number | string} lp_start_price - New order start price
+ *   - For down_orders: higher price (near opening price)
+ *   - For up_orders: lower price (near stop loss price)
  *
- * @param {bigint | number | string} lp_end_price - 新订单的结束价格
- *   - 对于 down_orders：这是较低的价格（止损价附近）
- *   - 对于 up_orders：这是较高的价格（开仓价附近）
+ * @param {bigint | number | string} lp_end_price - New order end price
+ *   - For down_orders: lower price (near stop loss price)
+ *   - For up_orders: higher price (near opening price)
  *
- * @returns {OverlapResult} 返回包含重叠检查结果和候选插入索引的对象
- * @returns {boolean} returns.no_overlap - 是否没有重叠
- *   - `true`: 可以安全插入，使用 `close_insert_indices` 中的索引
- *   - `false`: 存在重叠，无法插入
- * @returns {number[]} returns.close_insert_indices - 候选插入位置的 OrderBook 索引数组
- *   - 无重叠时：包含主位置及前后3个节点的索引（最多7个）
- *   - 有重叠时：空数组 `[]`
- *   - 空订单簿时：`[65535]` 表示插入到头部
- * @returns {string} returns.overlap_reason - 重叠原因说明
- *   - 无重叠时：空字符串 `""`
- *   - 有重叠时：描述具体原因（如 "Overlaps with existing order range"）
+ * @returns {OverlapResult} Object containing overlap check result and candidate insertion indices
+ * @returns {boolean} returns.no_overlap - Whether there is no overlap
+ *   - `true`: can safely insert, use indices in `close_insert_indices`
+ *   - `false`: overlap exists, cannot insert
+ * @returns {number[]} returns.close_insert_indices - Array of OrderBook indices for candidate insertion positions
+ *   - No overlap: contains main position and 3 nodes before and after (max 7)
+ *   - With overlap: empty array `[]`
+ *   - Empty order book: `[65535]` indicating insert at head
+ * @returns {string} returns.overlap_reason - Overlap reason description
+ *   - No overlap: empty string `""`
+ *   - With overlap: describes specific reason (e.g., "Overlaps with existing order range")
  *
  * @example
- * // 示例 1: down_orders（做多订单）- 插入到中间位置
+ * // Example 1: down_orders (long orders) - insert in middle position
  * const downOrders = [
- *   { index: 10, lock_lp_start_price: 100n, lock_lp_end_price: 90n },  // 订单1
- *   { index: 25, lock_lp_start_price: 80n, lock_lp_end_price: 70n },   // 订单2
- *   { index: 33, lock_lp_start_price: 60n, lock_lp_end_price: 50n }    // 订单3
+ *   { index: 10, lock_lp_start_price: 100n, lock_lp_end_price: 90n },  // order 1
+ *   { index: 25, lock_lp_start_price: 80n, lock_lp_end_price: 70n },   // order 2
+ *   { index: 33, lock_lp_start_price: 60n, lock_lp_end_price: 50n }    // order 3
  * ];
  *
- * // 检查新订单 [75, 72] 是否可以插入
+ * // Check if new order [75, 72] can be inserted
  * const result = checkPriceRangeOverlap('down_orders', downOrders, 75n, 72n);
  * console.log(result);
- * // 返回: {
+ * // Returns: {
  * //   no_overlap: true,
  * //   close_insert_indices: [25, 10, 33],
- * //   // 主位置是 25（订单2），因为新订单应该插入到订单2和订单3之间
- * //   // 备选位置：10（订单1在前），33（订单3在后）
+ * //   // Main position is 25 (order 2), new order should insert between order 2 and 3
+ * //   // Alternatives: 10 (order 1 before), 33 (order 3 after)
  * //   overlap_reason: ""
  * // }
  *
  * @example
- * // 示例 2: down_orders - 价格重叠的情况
+ * // Example 2: down_orders - price overlap case
  * const downOrders = [
  *   { index: 10, lock_lp_start_price: 100n, lock_lp_end_price: 90n },
  *   { index: 25, lock_lp_start_price: 80n, lock_lp_end_price: 70n }
  * ];
  *
- * // 新订单 [95, 85] 与订单1 [100, 90] 重叠
+ * // New order [95, 85] overlaps with order 1 [100, 90]
  * const result = checkPriceRangeOverlap('down_orders', downOrders, 95n, 85n);
  * console.log(result);
- * // 返回: {
+ * // Returns: {
  * //   no_overlap: false,
  * //   close_insert_indices: [],
  * //   overlap_reason: "Overlaps with existing order range"
  * // }
  *
  * @example
- * // 示例 3: up_orders（做空订单）- 插入到末尾
+ * // Example 3: up_orders (short orders) - insert at end
  * const upOrders = [
  *   { index: 5, lock_lp_start_price: 70n, lock_lp_end_price: 80n },
  *   { index: 12, lock_lp_start_price: 90n, lock_lp_end_price: 100n }
  * ];
  *
- * // 新订单 [110, 120] 应该插入到末尾
+ * // New order [110, 120] should be inserted at end
  * const result = checkPriceRangeOverlap('up_orders', upOrders, 110n, 120n);
  * console.log(result);
- * // 返回: {
+ * // Returns: {
  * //   no_overlap: true,
  * //   close_insert_indices: [12, 5],
- * //   // 主位置是 12（订单2），因为新订单应该插入到订单2之后
- * //   // 备选位置：5（订单1在前）
+ * //   // Main position is 12 (order 2), new order should insert after order 2
+ * //   // Alternatives: 5 (order 1 before)
  * //   overlap_reason: ""
  * // }
  *
  * @example
- * // 示例 4: 空订单簿 - 第一个订单
+ * // Example 4: empty order book - first order
  * const emptyOrders = [];
  * const result = checkPriceRangeOverlap('down_orders', emptyOrders, 100n, 90n);
  * console.log(result);
- * // 返回: {
+ * // Returns: {
  * //   no_overlap: true,
  * //   close_insert_indices: [65535],
- * //   // 65535 是 u16::MAX，表示插入到头部（空订单簿时的特殊值）
+ * //   // 65535 is u16::MAX, means insert at head (special value for empty order book)
  * //   overlap_reason: ""
  * // }
  *
  * @example
- * // 示例 5: 实际使用场景 - 做多交易
+ * // Example 5: real usage scenario - long position
  * async function openLongPosition(sdk, mint, buyTokenAmount, stopLossPrice) {
- *   // 1. 获取 down_orders 数据
+ *   // 1. Get down_orders data
  *   const ordersData = await sdk.data.orders(mint, { type: 'down_orders' });
  *   const orders = ordersData.data.orders;
  *
- *   // 2. 获取当前价格
+ *   // 2. Get current price
  *   const currentPrice = BigInt(await sdk.data.price(mint));
  *
- *   // 3. 计算平仓价格区间（模拟）
+ *   // 3. Calculate close price range (simulation)
  *   const simulateResult = await sdk.simulator.simulateLongStopLoss(
  *     mint,
  *     buyTokenAmount,
  *     stopLossPrice
  *   );
  *
- *   // 4. 检查价格区间是否可以插入
+ *   // 4. Check if price range can be inserted
  *   const overlapCheck = checkPriceRangeOverlap(
  *     'down_orders',
  *     orders,
@@ -199,29 +202,29 @@ function transformOrdersData(ordersData) {
  *   );
  *
  *   if (!overlapCheck.no_overlap) {
- *     throw new Error(`无法开仓: ${overlapCheck.overlap_reason}`);
+ *     throw new Error(`Cannot open position: ${overlapCheck.overlap_reason}`);
  *   }
  *
- *   // 5. 使用 close_insert_indices 调用合约
+ *   // 5. Call contract with close_insert_indices
  *   const tx = await sdk.trading.long({
  *     mint,
  *     buyTokenAmount,
  *     maxSolAmount,
  *     marginSolMax,
  *     closePrice: stopLossPrice,
- *     closeInsertIndices: overlapCheck.close_insert_indices  // 传递给合约
+ *     closeInsertIndices: overlapCheck.close_insert_indices  // Pass to contract
  *   });
  *
  *   return tx;
  * }
  *
- * @throws {Error} 当输入的起始和结束价格与订单类型规则不匹配时抛出错误
+ * @throws {Error} When input start and end prices don't match order type rules
  *
- * @see {@link https://github.com/your-repo/docs/orderbook.md|OrderBook 文档}
- * @see {@link transformOrdersData} 数据格式转换函数
+ * @see {@link https://github.com/your-repo/docs/orderbook.md|OrderBook documentation}
+ * @see {@link transformOrdersData} Data format conversion function
  *
  * @since 2.0.0
- * @version 2.0.0 - 从返回 prev_order_pda/next_order_pda 改为返回 close_insert_indices
+ * @version 2.0.0 - Changed from returning prev_order_pda/next_order_pda to returning close_insert_indices
  */
 function checkPriceRangeOverlap(order_type, order_list, lp_start_price, lp_end_price) {
   // console.log("checkPriceRangeOverlap=",order_type,lp_start_price, lp_end_price)
@@ -236,16 +239,16 @@ function checkPriceRangeOverlap(order_type, order_list, lp_start_price, lp_end_p
 
   const isDown = order_type === 'down_orders';
 
-  // 验证并规范化输入价格区间，确保 minPrice <= maxPrice
+  // Validate and normalize input price range, ensure minPrice <= maxPrice
   if ((isDown && startPrice < endPrice) || (!isDown && startPrice > endPrice)) {
-    throw new Error('输入的起始和结束价格与订单类型规则不匹配。');
+    throw new Error('Input start and end prices do not match order type rules.');
   }
   const minPrice = isDown ? endPrice : startPrice;
   const maxPrice = isDown ? startPrice : endPrice;
 
   let low = 0;
   let high = order_list.length - 1;
-  let insertionIndex = order_list.length; // 默认插入到最后
+  let insertionIndex = order_list.length; // Default insert at the end
 
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
@@ -256,9 +259,9 @@ function checkPriceRangeOverlap(order_type, order_list, lp_start_price, lp_end_p
     const orderMin = isDown ? orderEnd : orderStart;
     const orderMax = isDown ? orderStart : orderEnd;
 
-    // 核心重叠判断: (StartA < EndB) and (EndA > StartB)
+    // Core overlap check: (StartA < EndB) and (EndA > StartB)
     if (minPrice < orderMax && maxPrice > orderMin) {
-      // 发生基础重叠
+      // Basic overlap detected
       return {
         no_overlap: false,
         close_insert_indices: [],
@@ -267,16 +270,16 @@ function checkPriceRangeOverlap(order_type, order_list, lp_start_price, lp_end_p
     }
 
     if (isDown) {
-      // down_orders: 价格从大到小 (orderMax 递减)
-      if (maxPrice > orderMax) { // 新区间在当前区间的“左边”（价格更高）
+      // down_orders: prices from high to low (orderMax decreases)
+      if (maxPrice > orderMax) { // New range is to "left" of current range (higher price)
         insertionIndex = mid;
         high = mid - 1;
       } else {
         low = mid + 1;
       }
     } else {
-      // up_orders: 价格从小到大 (orderMin 递增)
-      if (minPrice < orderMin) { // 新区间在当前区间的“左边”（价格更低）
+      // up_orders: prices from low to high (orderMin increases)
+      if (minPrice < orderMin) { // New range is to "left" of current range (lower price)
         insertionIndex = mid;
         high = mid - 1;
       } else {
@@ -285,12 +288,12 @@ function checkPriceRangeOverlap(order_type, order_list, lp_start_price, lp_end_p
     }
   }
 
-  // 根据找到的插入点，确定逻辑上的前后订单
-  // insertionIndex 是新区间应该插入的位置，使得列表依然有序
+  // Based on found insertion point, determine logically previous and next orders
+  // insertionIndex is where new range should be inserted so list remains sorted
   const nextOrder = order_list[insertionIndex] || null;
   const prevOrder = order_list[insertionIndex - 1] || null;
 
-  // 检查流动性预留重叠
+  // Check liquidity reservation overlap
   function checkLiquidityReservationOverlap(checkOrder) {
     if (!checkOrder) return false;
 
@@ -299,16 +302,16 @@ function checkPriceRangeOverlap(order_type, order_list, lp_start_price, lp_end_p
     const orderMin = isDown ? orderEnd : orderStart;
     const orderMax = isDown ? orderStart : orderEnd;
 
-    // 计算扩大区间值
+    // Calculate expansion amount
     const expansionAmount = (orderMax - orderMin) * BigInt(Math.floor(LIQUIDITY_RESERVATION)) / 100n;
 
     let hasOverlap;
     if (isDown) {
-      // down_orders: start不变，end向下扩大
+      // down_orders: start unchanged, end expands downward
       const expandedEnd = orderMin - expansionAmount;
       hasOverlap = startPrice >= expandedEnd;
     } else {
-      // up_orders: start不变，end向上扩大
+      // up_orders: start unchanged, end expands upward
       const expandedEnd = orderMax + expansionAmount;
       hasOverlap = startPrice <= expandedEnd;
     }
@@ -316,7 +319,7 @@ function checkPriceRangeOverlap(order_type, order_list, lp_start_price, lp_end_p
     return hasOverlap;
   }
 
-  // 检查与前一个订单的流动性预留重叠
+  // Check liquidity reservation overlap with previous order
   if (prevOrder && checkLiquidityReservationOverlap(prevOrder)) {
     return {
       no_overlap: false,
@@ -325,39 +328,39 @@ function checkPriceRangeOverlap(order_type, order_list, lp_start_price, lp_end_p
     };
   }
 
-  // 无重叠，构建 close_insert_indices 数组
-  // 优先级：主位置 → 前1个 → 后1个 → 前2个 → 后2个 → 前3个 → 后3个
+  // No overlap, build close_insert_indices array
+  // Priority: main position → before 1 → after 1 → before 2 → after 2 → before 3 → after 3
   const indices = [];
 
-  // 主插入位置逻辑：
-  // - down_orders (价格从高到低): 插入到 prevOrder 之后
-  //   - 如果没有 prevOrder (insertionIndex=0)，说明价格最高，使用 u16::MAX 插入头部
-  //   - 如果有 prevOrder，使用 prevOrder.index，插入到它后面
-  // - up_orders (价格从低到高): 插入到 prevOrder 之后
-  //   - 如果没有 prevOrder (insertionIndex=0)，说明价格最低，使用 u16::MAX 插入头部
-  //   - 如果有 prevOrder，使用 prevOrder.index，插入到它后面
+  // Main insertion position logic:
+  // - down_orders (prices high to low): insert after prevOrder
+  //   - If no prevOrder (insertionIndex=0), highest price, use u16::MAX for head insertion
+  //   - If prevOrder exists, use prevOrder.index, insert after it
+  // - up_orders (prices low to high): insert after prevOrder
+  //   - If no prevOrder (insertionIndex=0), lowest price, use u16::MAX for head insertion
+  //   - If prevOrder exists, use prevOrder.index, insert after it
 
   if (prevOrder && prevOrder.index !== undefined) {
-    // 有前置订单，插入到它后面
+    // Has previous order, insert after it
     indices.push(prevOrder.index);
   } else {
-    // 没有前置订单 (insertionIndex=0)
-    // down_orders: 价格最高，插入头部 (65535)
-    // up_orders: 价格最低，插入头部 (65535)
-    indices.push(65535); // u16::MAX - 插入到头部
+    // No previous order (insertionIndex=0)
+    // down_orders: highest price, insert at head (65535)
+    // up_orders: lowest price, insert at head (65535)
+    indices.push(65535); // u16::MAX - insert at head
   }
 
-  // 添加前后节点的索引
-  // 根据 MAX_CANDIDATE_INDICES 常量计算需要添加多少个前后节点
+  // Add indices of nodes before and after
+  // Calculate how many before and after nodes to add based on MAX_CANDIDATE_INDICES constant
   for (let offset = 1; offset <= CANDIDATE_NODES_EACH_SIDE; offset++) {
-    // 添加前面第 offset 个节点
+    // Add the offset-th node before
     const beforeIndex = insertionIndex - 1 - offset;
     if (beforeIndex >= 0 && order_list[beforeIndex] && order_list[beforeIndex].index !== undefined) {
       indices.push(order_list[beforeIndex].index);
     }
 
-    // 添加后面第 offset 个节点
-    // offset=1 应该是 nextOrder (insertionIndex)，offset=2 是 insertionIndex+1，以此类推
+    // Add the offset-th node after
+    // offset=1 should be nextOrder (insertionIndex), offset=2 is insertionIndex+1, etc.
     const afterIndex = insertionIndex + offset - 1;
     if (afterIndex < order_list.length && order_list[afterIndex] && order_list[afterIndex].index !== undefined) {
       indices.push(order_list[afterIndex].index);

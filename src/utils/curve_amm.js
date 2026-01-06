@@ -50,17 +50,17 @@ class CurveAMM {
     static INITIAL_MIN_PRICE_DECIMAL = new Decimal('0.000000001');
 
     /**
-     * Decimal representation of precision factor = 10000000000000000000000000000
+     * Decimal representation of precision factor = 10^23
      * @type {Decimal}
      */
     //static PRICE_PRECISION_FACTOR_DECIMAL = new Decimal('10000000000000000000000000000');
-    static PRICE_PRECISION_FACTOR_DECIMAL =   new Decimal('100000000000000000000000000');
+    static PRICE_PRECISION_FACTOR_DECIMAL =   new Decimal('100000000000000000000000');
 
     /**
-     * Decimal representation of Token precision factor = 1000000
+     * Decimal representation of Token precision factor = 1000000000 (10^9)
      * @type {Decimal}
      */
-    static TOKEN_PRECISION_FACTOR_DECIMAL = new Decimal('1000000');
+    static TOKEN_PRECISION_FACTOR_DECIMAL = new Decimal('1000000000');
 
     /**
      * Decimal representation of SOL precision factor = 1000000000
@@ -70,17 +70,17 @@ class CurveAMM {
 
 
     /**
-     * Maximum price for u128
+     * Maximum price for u128 (matches PRICE_CALCULATION_LIMIT in Rust)
      * @type {bigint}
      */
-    static MAX_U128_PRICE = 50000000000000000000000000000n;
+    static MAX_U128_PRICE = 50000000000000000000000000000000n;
 
 
     /**
      * Minimum price for u128
      * @type {bigint}
      */
-    static MIN_U128_PRICE = 11958993476234855500n;
+    static MIN_U128_PRICE = 11958993476234855n;
 
 
     
@@ -190,8 +190,8 @@ class CurveAMM {
     }
 
     /**
-     * Convert Decimal token amount to u64, using 6-digit precision, rounded down
-     * 
+     * Convert Decimal token amount to u64, using 9-digit precision, rounded down
+     *
      * @param {Decimal} amount - Decimal token amount to be converted
      * @returns {bigint|null} Converted u64 token amount, returns null if overflow
      */
@@ -206,8 +206,8 @@ class CurveAMM {
     }
 
     /**
-     * Convert Decimal token amount to u64, using 6-digit precision, rounded up
-     * 
+     * Convert Decimal token amount to u64, using 9-digit precision, rounded up
+     *
      * @param {Decimal} amount - Decimal token amount to be converted
      * @returns {bigint|null} Converted u64 token amount, returns null if overflow
      */
@@ -254,8 +254,8 @@ class CurveAMM {
     }
 
     /**
-     * Convert u64 token amount to Decimal, using 6-digit precision
-     * 
+     * Convert u64 token amount to Decimal, using 9-digit precision
+     *
      * @param {bigint|string|number} amount - u64 token amount to be converted
      * @returns {Decimal} Converted Decimal token amount
      */
@@ -309,7 +309,7 @@ class CurveAMM {
      * @param {bigint|string|number} startLowPrice - Starting price (lower)
      * @param {bigint|string|number} endHighPrice - Target price (higher)
      * @returns {[bigint, bigint]|null} Returns [SOL amount to invest, token amount to obtain] on success, null on failure
-     * SOL amount in 9-digit precision rounded up; token amount in 6-digit precision rounded down 
+     * SOL amount in 9-digit precision rounded up; token amount in 9-digit precision rounded down 
      */
     static buyFromPriceToPrice(startLowPrice, endHighPrice) {
         // Convert to Decimal for calculation
@@ -347,7 +347,7 @@ class CurveAMM {
         }
 
         // Convert back to u64
-        // SOL uses 9-digit precision rounded up, token uses 6-digit precision rounded down
+        // SOL uses 9-digit precision rounded up, token uses 9-digit precision rounded down
         const solAmountU64 = this.solDecimalToU64Ceil(solInputAmount);
         const tokenAmountU64 = this.tokenDecimalToU64(tokenOutputAmount);
 
@@ -364,7 +364,7 @@ class CurveAMM {
      * @param {bigint|string|number} startHighPrice - Starting price (higher)
      * @param {bigint|string|number} endLowPrice - Target price (lower)
      * @returns {[bigint, bigint]|null} Returns [token amount to sell, SOL amount to obtain] on success, null on failure
-     * token amount in 6-digit precision rounded up; SOL amount in 9-digit precision rounded down
+     * token amount in 9-digit precision rounded up; SOL amount in 9-digit precision rounded down
      */
     static sellFromPriceToPrice(startHighPrice, endLowPrice) {
         // console.log('\n=== sellFromPriceToPrice debug info ===');
@@ -434,7 +434,7 @@ class CurveAMM {
         }
 
         // Convert back to u64
-        // token uses 6-digit precision rounded up, SOL uses 9-digit precision rounded down
+        // token uses 9-digit precision rounded up, SOL uses 9-digit precision rounded down
         const tokenAmountU64 = this.tokenDecimalToU64Ceil(tokenInputAmount);
         const solAmountU64 = this.solDecimalToU64(solOutputAmount);
 
@@ -606,7 +606,7 @@ class CurveAMM {
         // Calculate token reserves for ending state
         const endTokenReserve = startTokenReserve.add(tokenInputDec);
 
-        // 根据AMM公式计算结束状态的SOL储备量
+        // Calculate SOL reserves for ending state according to AMM formula
         const endSolReserve = k.div(endTokenReserve);
 
         // Calculate SOL output amount
@@ -672,14 +672,14 @@ class CurveAMM {
         // Calculate token reserves for ending state
         const endTokenReserve = startTokenReserve.sub(tokenOutputDec);
 
-        //console.log('buyFromPriceWithTokenOutput  结束token储备 = 起始token储备 - token输出量:', endTokenReserve.toString());
+        //console.log('buyFromPriceWithTokenOutput - ending token reserve = starting token reserve - token output amount:', endTokenReserve.toString());
 
         // Check if token reserves are sufficient
         if (endTokenReserve.lte(0)) {
             return null;
         }
 
-        // 根据AMM公式计算结束状态的SOL储备量
+        // Calculate SOL reserves for ending state according to AMM formula
         const endSolReserve = k.div(endTokenReserve);
 
         // Calculate required SOL input amount
@@ -839,8 +839,8 @@ class CurveAMM {
 
     /**
      * Calculate price based on liquidity pool reserves (how much SOL 1 token is worth)
-     * 
-     * @param {bigint|string|number|BN} lpTokenReserve - Token reserves in liquidity pool (u64 format, 6-digit precision)
+     *
+     * @param {bigint|string|number|BN} lpTokenReserve - Token reserves in liquidity pool (u64 format, 9-digit precision)
      * @param {bigint|string|number|BN} lpSolReserve - SOL reserves in liquidity pool (u64 format, 9-digit precision)
      * @returns {string|null} Returns 28-digit decimal price string on success, null on failure
      */
