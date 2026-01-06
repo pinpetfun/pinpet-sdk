@@ -1,7 +1,7 @@
 import { Connection, PublicKey, Transaction, Keypair } from '@solana/web3.js';
 import { BN, Wallet, Program } from '@coral-xyz/anchor';
 
-// ========================= 基础类型定义 =========================
+// ========================= Basic Type Definitions =========================
 
 export type DataSourceType = 'fast' | 'chain';
 
@@ -9,24 +9,22 @@ export interface NetworkConfig {
   name: string;
   defaultDataSource: DataSourceType;
   solanaEndpoint: string;
-  spin_fast_api_url: string;
-  fee_recipient: string;
-  base_fee_recipient: string;
-  params_account: string;
+  pinPetFastApiUrl: string;
+  feeRecipient: string;
+  baseFeeRecipient: string;
+  paramsAccount: string;
 }
 
 export interface PinPetSdkOptions {
   defaultDataSource?: DataSourceType;
   solanaEndpoint?: string;
-  spin_fast_api_url?: string;
-  fee_recipient?: string;
-  base_fee_recipient?: string;
-  params_account?: string;
-  debug_log_path?: string;
-  debugLogPath?: string;
+  pinPetFastApiUrl?: string;
+  feeRecipient?: string;
+  baseFeeRecipient?: string;
+  paramsAccount?: string;
 }
 
-// ========================= 订单和交易相关类型 =========================
+// ========================= Order and Transaction Related Types =========================
 
 export interface OrderData {
   order_pda: string;
@@ -86,7 +84,7 @@ export interface MintInfo {
   [key: string]: any;
 }
 
-// ========================= 交易参数类型 =========================
+// ========================= Transaction Parameter Types =========================
 
 export interface BuyParams {
   mintAccount: string | PublicKey;
@@ -144,7 +142,7 @@ export interface TransactionOptions {
   computeUnits?: number;
 }
 
-// ========================= 查询参数类型 =========================
+// ========================= Query Parameter Types =========================
 
 export interface OrdersQueryOptions {
   type?: 'up_orders' | 'down_orders';
@@ -164,7 +162,7 @@ export interface UserOrdersQueryOptions {
   dataSource?: DataSourceType;
 }
 
-// ========================= 模拟器相关类型 =========================
+// ========================= Simulator Related Types =========================
 
 export interface SimulationResult {
   liqResult: {
@@ -184,7 +182,7 @@ export interface SimulationResult {
   suggestedSolAmount: string;
 }
 
-// ========================= 工具类相关类型 =========================
+// ========================= Utility Class Related Types =========================
 
 export interface FindPrevNextResult {
   prevOrder: OrderData | null;
@@ -197,7 +195,7 @@ export interface ValidationResult {
   warnings: string[];
 }
 
-// ========================= 模块接口定义 =========================
+// ========================= Module Interface Definitions =========================
 
 export interface TradingModule {
   buy(params: BuyParams, options?: TransactionOptions): Promise<TransactionResult>;
@@ -239,14 +237,14 @@ export interface SimulatorModule {
   simulateSellStopLoss(mint: string, sellTokenAmount: bigint | string | number, stopLossPrice: bigint | string | number, lastPrice?: any, ordersData?: any): Promise<any>;
 }
 
-// ========================= 数据接口类型 =========================
+// ========================= Data Interface Types =========================
 
 export interface DataInterface {
   orders(mint: string, options?: OrdersQueryOptions): Promise<OrdersResponse>;
   price(mint: string, options?: PriceQueryOptions): Promise<PriceResponse>;
 }
 
-// ========================= 主 SDK 类型定义 =========================
+// ========================= Main SDK Type Definitions =========================
 
 export declare class PinPetSdk {
   connection: Connection;
@@ -257,15 +255,14 @@ export declare class PinPetSdk {
   feeRecipient: PublicKey;
   baseFeeRecipient: PublicKey;
   paramsAccount: PublicKey;
-  spinFastApiUrl: string;
-  debugLogPath: string | null;
-  
-  // 常量
+  pinPetFastApiUrl: string;
+
+  // Constants
   readonly MAX_ORDERS_COUNT: number;
   readonly FIND_MAX_ORDERS_COUNT: number;
   readonly SUGGEST_LIQ_RATIO: number;
-  
-  // 模块
+
+  // Modules
   trading: TradingModule;
   fast: FastModule;
   chain: ChainModule;
@@ -274,20 +271,24 @@ export declare class PinPetSdk {
   simulator: SimulatorModule;
   data: DataInterface;
 
+  // Static utility class references
+  static CurveAMM: typeof CurveAMM;
+  static OrderUtils: typeof OrderUtils;
+
   constructor(
     connection: Connection,
     programId: string | PublicKey,
     options?: PinPetSdkOptions
   );
 
-  // OrderUtils 快捷方法
+  // OrderUtils shortcut methods
   buildLpPairs(orders: OrderData[], direction: string, price: any, maxCount?: number): LpPair[];
   buildOrderAccounts(orders: OrderData[], maxCount?: number): (string | null)[];
   findPrevNext(orders: OrderData[], findOrderPda: string): FindPrevNextResult;
   findOrderIndex(orders: OrderData[], targetOrderPda: string | PublicKey | null): number;
 }
 
-// ========================= 工具类导出 =========================
+// ========================= Utility Class Exports =========================
 
 export declare class OrderUtils {
   static buildLpPairs(orders: OrderData[], direction: string, price: any, maxCount?: number): LpPair[];
@@ -308,28 +309,51 @@ export declare class CurveAMM {
   static readonly MAX_U128_PRICE: bigint;
   static readonly MIN_U128_PRICE: bigint;
 
+  // Price conversion methods
   static u128ToDecimal(price: bigint | string | number): any;
   static decimalToU128(price: any): bigint | null;
   static decimalToU128Ceil(price: any): bigint | null;
+  static u64ToDecimal(price: bigint | string | number): any;
+  static decimalToU64(price: any): bigint | null;
+  static decimalToU64Ceil(price: any): bigint | null;
+
+  // Token amount conversion methods
+  static tokenDecimalToU64(amount: any): bigint | null;
+  static tokenDecimalToU64Ceil(amount: any): bigint | null;
+  static u64ToTokenDecimal(amount: bigint | string | number): any;
+
+  // SOL amount conversion methods
+  static solDecimalToU64(amount: any): bigint | null;
+  static solDecimalToU64Ceil(amount: any): bigint | null;
+  static u64ToSolDecimal(amount: bigint | string | number): any;
+
+  // Initial price and K calculation
+  static calculateInitialK(): any;
+  static getInitialPrice(): bigint | null;
+
+  // AMM calculation methods
+  static calculateReservesByPrice(price: any, k: any): [any, any] | null;
   static buyFromPriceToPrice(startLowPrice: bigint | string | number, endHighPrice: bigint | string | number): [bigint, bigint] | null;
   static sellFromPriceToPrice(startHighPrice: bigint | string | number, endLowPrice: bigint | string | number): [bigint, bigint] | null;
   static buyFromPriceWithSolInput(startLowPrice: bigint | string | number, solInputAmount: bigint | string | number): [bigint, bigint] | null;
   static sellFromPriceWithTokenInput(startHighPrice: bigint | string | number, tokenInputAmount: bigint | string | number): [bigint, bigint] | null;
   static buyFromPriceWithTokenOutput(startLowPrice: bigint | string | number, tokenOutputAmount: bigint | string | number): [bigint, bigint] | null;
   static sellFromPriceWithSolOutput(startHighPrice: bigint | string | number, solOutputAmount: bigint | string | number): [bigint, bigint] | null;
+
+  // Fee and price display methods
   static calculateAmountAfterFee(amount: bigint | string | number, fee: number): bigint | null;
   static formatPriceForDisplay(price: bigint | string | number, decimalPlaces?: number): string;
   static createPriceDisplayString(price: bigint | string | number, decimalPlaces?: number): string;
   static calculatePoolPrice(lpTokenReserve: bigint | string | number | BN, lpSolReserve: bigint | string | number | BN): string | null;
 }
 
-// ========================= 常量和函数导出 =========================
+// ========================= Constant and Function Exports =========================
 
 export declare const SPINPET_PROGRAM_ID: string;
 
 export declare function getDefaultOptions(networkName?: 'MAINNET' | 'DEVNET' | 'LOCALNET'): NetworkConfig;
 
-// ========================= 模块类导出 =========================
+// ========================= Module Class Exports =========================
 
 export declare class TradingModule implements TradingModule {}
 export declare class FastModule implements FastModule {}
@@ -338,5 +362,5 @@ export declare class TokenModule implements TokenModule {}
 export declare class ParamModule implements ParamModule {}
 export declare class SimulatorModule implements SimulatorModule {}
 
-// 默认导出
+// Default export
 export default PinPetSdk;

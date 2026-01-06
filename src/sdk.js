@@ -1,31 +1,23 @@
 const anchor = require('@coral-xyz/anchor');
 const { PublicKey } = require('@solana/web3.js');
-// 统一使用 buffer 包，所有平台一致
+// Use unified buffer package for consistency across all platforms
 const { Buffer } = require('buffer');
 
-// 环境检测和条件加载
+// Environment detection and conditional loading
 const IS_NODE = typeof process !== 'undefined' && process.versions && process.versions.node;
 
-// 确保全局可用（兼容现有代码）
+// Ensure global availability (compatible with existing code)
 if (typeof global !== 'undefined' && !global.Buffer) {
   global.Buffer = Buffer;
 }
 
-let fs, path;
-if (IS_NODE) {
-  try {
-    fs = require('fs');
-    path = require('path'); 
-  } catch (e) {
-    console.warn('File system modules not available');
-  }
-}
 const TradingModule = require('./modules/trading');
 const TokenModule = require('./modules/token');
 const ParamModule = require('./modules/param');
 const FastModule = require('./modules/fast');
 const SimulatorModule = require('./modules/simulator');
 const ChainModule = require('./modules/chain');
+const ToolsModule = require('./modules/tools');
 const OrderUtils = require('./utils/orderUtils');
 const CurveAMM = require('./utils/curve_amm');
 const spinpetIdl = require('./idl/pinpet.json');
@@ -53,7 +45,9 @@ class PinPetSdk {
     }
 
    //console.log("options.defaultDataSource",options.defaultDataSource)
-    this.defaultDataSource = options.defaultDataSource || 'fast';
+    //this.defaultDataSource = options.defaultDataSource || 'fast';
+    this.defaultDataSource = options.defaultDataSource || 'chain';
+
     console.log('Data source method:', this.defaultDataSource);
     
     // Basic configuration
@@ -62,25 +56,18 @@ class PinPetSdk {
     this.programId = typeof programId === 'string' ? new PublicKey(programId) : programId;
     
     // Initialize account configuration with options
-    this.feeRecipient = this._parsePublicKey(this.options.fee_recipient);
-    this.baseFeeRecipient = this._parsePublicKey(this.options.base_fee_recipient);
-    this.paramsAccount = this._parsePublicKey(this.options.params_account);
-    this.spinFastApiUrl = this.options.spin_fast_api_url;
+    this.feeRecipient = this._parsePublicKey(this.options.feeRecipient);
+    this.baseFeeRecipient = this._parsePublicKey(this.options.baseFeeRecipient);
+    this.paramsAccount = this._parsePublicKey(this.options.paramsAccount);
+    this.pinPetFastApiUrl = this.options.pinPetFastApiUrl;
 
     // Maximum number of orders that can be processed at once in the contract
     this.MAX_ORDERS_COUNT = 9
     // Maximum number of orders to fetch during queries
     this.FIND_MAX_ORDERS_COUNT = 1000
 
-    // 在流动性不足时, 建议实际使用流动性的比例, 分每 (1000=100%)
+    // When liquidity is insufficient, the suggested ratio of actual liquidity to use, per 1000 (1000=100%)
     this.SUGGEST_LIQ_RATIO = 975; // 97.5% (1000=100%)
-
-    // 只在 Node.js 环境中启用调试日志
-    this.debugLogPath = IS_NODE && fs ? (this.options.debug_log_path || this.options.debugLogPath || null) : null;
-    
-    // 初始化调试文件
-    this._initDebugFiles();
-
 
     // Initialize Anchor program
     this.program = this._initProgram(this.options);
@@ -92,25 +79,25 @@ class PinPetSdk {
     this.fast = new FastModule(this);
     this.simulator = new SimulatorModule(this);
     this.chain = new ChainModule(this);
-    
+    this.tools = new ToolsModule(this);
+
     // Initialize curve AMM utility
     this.curve = CurveAMM;
     
     /**
-     * 统一数据接口 - 根据 defaultDataSource 配置自动路由到 fast 或 chain 模块
      * Unified data interface - automatically routes to fast or chain module based on defaultDataSource config
-     * 
+     *
      * @example
-     * // 使用默认数据源获取订单
+     * // Get orders using default data source
      * const ordersData = await sdk.data.orders(mint, { type: 'down_orders' });
-     * 
-     * // 临时指定数据源
-     * const ordersData = await sdk.data.orders(mint, { 
+     *
+     * // Temporarily specify data source
+     * const ordersData = await sdk.data.orders(mint, {
      *   type: 'down_orders',
-     *   dataSource: 'chain'  // 临时使用链上数据源
+     *   dataSource: 'chain'  // Temporarily use on-chain data source
      * });
-     * 
-     * // 获取用户订单
+     *
+     * // Get user orders
      * const userOrders = await sdk.data.user_orders(user, mint, {
      *   page: 1,
      *   limit: 200,
@@ -119,27 +106,27 @@ class PinPetSdk {
      */
     this.data = {
       /**
-       * 获取代币订单数据
-       * @param {string} mint - 代币地址
-       * @param {Object} options - 查询参数，支持 dataSource 字段临时指定数据源
-       * @returns {Promise<Object>} 订单数据
+       * Get token order data
+       * @param {string} mint - Token address
+       * @param {Object} options - Query parameters, supports dataSource field to temporarily specify data source
+       * @returns {Promise<Object>} Order data
        */
       orders: (mint, options = {}) => this._getDataWithSource('orders', [mint, options]),
-      
+
       /**
-       * 获取代币价格数据
-       * @param {string} mint - 代币地址
-       * @param {Object} options - 查询参数，支持 dataSource 字段临时指定数据源
-       * @returns {Promise<string>} 价格字符串
+       * Get token price data
+       * @param {string} mint - Token address
+       * @param {Object} options - Query parameters, supports dataSource field to temporarily specify data source
+       * @returns {Promise<string>} Price string
        */
       price: (mint, options = {}) => this._getDataWithSource('price', [mint, options]),
-      
+
       /**
-       * 获取用户订单数据
-       * @param {string} user - 用户地址
-       * @param {string} mint - 代币地址
-       * @param {Object} options - 查询参数，支持 dataSource 字段临时指定数据源
-       * @returns {Promise<Object>} 用户订单数据
+       * Get user order data
+       * @param {string} user - User address
+       * @param {string} mint - Token address
+       * @param {Object} options - Query parameters, supports dataSource field to temporarily specify data source
+       * @returns {Promise<Object>} User order data
        */
       user_orders: (user, mint, options = {}) => this._getDataWithSource('user_orders', [user, mint, options])
     };
@@ -178,168 +165,6 @@ class PinPetSdk {
     return new anchor.Program(spinpetIdl, this.programId);
   }
 
-  // ========== Order Processing Utility Methods ==========
-
-  /**
-   * Build LP Pairs Array (for trading)
-   * 
-   * @param {Array} orders - Order array
-   * @param {string} direction - Direction: 'up_orders' (short orders) or 'down_orders' (long orders)
-   * @param {bigint|string|number} price - Current price (u128 format)
-   * @returns {Array} LP pairs array, format: [{ solAmount: BN, tokenAmount: BN }, ...]
-   * 
-   * @example
-   * const ordersData = await sdk.fast.orders(mint, { type: 'down_orders' });
-   * const currentPrice = await sdk.fast.price(mint);
-   * const lpPairs = sdk.buildLpPairs(ordersData.data.orders, 'down_orders', currentPrice);
-   * // Returns: [
-   * //   { solAmount: new anchor.BN("63947874"), tokenAmount: new anchor.BN("65982364399") },
-   * //   { solAmount: new anchor.BN("1341732020"), tokenAmount: new anchor.BN("1399566720549") },
-   * //   ...
-   * // ]
-   */
-  buildLpPairs(orders, direction, price) {
-    return OrderUtils.buildLpPairs(orders, direction, price, this.MAX_ORDERS_COUNT);
-  }
-
-  /**
-   * Build Order Accounts Array (for trading)
-   * 
-   * @param {Array} orders - Order array
-   * @returns {Array} Order account address array, format: [string, string, ..., null, null]
-   * 
-   * @example
-   * const ordersData = await sdk.fast.orders(mint, { type: 'down_orders' });
-   * const orderAccounts = sdk.buildOrderAccounts(ordersData.data.orders);
-   * // Returns: [
-   * //   "4fvsPDNoRRacSzE3PkEuNQeTNWMaeFqGwUxCnEbR1Dzb",
-   * //   "G4nHBYX8EbrP8r35pk5TfpvJZfGNyLnd4qsfT7ru5vLd",
-   * //   ...
-   * //   null, null
-   * // ]
-   */
-  buildOrderAccounts(orders) {
-    return OrderUtils.buildOrderAccounts(orders, this.MAX_ORDERS_COUNT);
-  }
-
-  /**
-   * Find Previous and Next Order
-   * 
-   * @param {Array} orders - Order array
-   * @param {string} findOrderPda - Target order PDA address
-   * @returns {Object} Returns { prevOrder: Object|null, nextOrder: Object|null }
-   * 
-   * @example
-   * const ordersData = await sdk.fast.orders(mint, { type: 'down_orders' });
-   * const result = sdk.findPrevNext(ordersData.data.orders, 'E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA');
-   * // Returns:
-   * // {
-   * //   prevOrder: { order_pda: "...", user: "...", ... } | null,
-   * //   nextOrder: { order_pda: "...", user: "...", ... } | null
-   * // }
-   */
-  findPrevNext(orders, findOrderPda) {
-    return OrderUtils.findPrevNext(orders, findOrderPda);
-  }
-
-  /**
-   * Get PDA Address Position in Orders Array
-   * 
-   * 获取指定 PDA 地址在订单数组中的索引位置，主要用于 closeLong 和 closeShort 方法中
-   * Gets the index position of specified PDA address in orders array, mainly used in closeLong and closeShort methods
-   * 
-   * @param {Array} orders - 订单数组 Order array  
-   * @param {string|PublicKey} targetOrderPda - 目标订单PDA地址 Target order PDA address
-   * @returns {number} PDA地址在数组中的索引位置，如果没有找到返回200
-   *                   Index position of PDA address in array, returns 200 if not found
-   * 
-   * @example
-   * // 在 closeLong 或 closeShort 中使用 Usage in closeLong or closeShort:
-   * const ordersData = await sdk.data.orders(mint.toString(), {
-   *   type: 'down_orders',
-   *   limit: sdk.MAX_ORDERS_COUNT + 1
-   * });
-   * 
-   * const closeOrderPubkey = new PublicKey("E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA");
-   * const orderIndex = sdk.findOrderIndex(ordersData.data.orders, closeOrderPubkey);
-   * 
-   * if (orderIndex !== 200) {
-   *   console.log(`订单在数组中的位置：${orderIndex} Order position in array: ${orderIndex}`);
-   * } else {
-   *   console.log('订单未找到 Order not found');
-   * }
-   * 
-   * // 也支持字符串格式的PDA地址 Also supports string format PDA address:
-   * const orderIndex2 = sdk.findOrderIndex(ordersData.data.orders, "E2T72D4wZdxHRjELN5VnRdcCvS4FPcYBBT3UBEoaC5cA");
-   * 
-   * // 实际业务场景使用示例 Real business scenario usage example:
-   * async function processCloseOrder(mintAccount, closeOrderPubkey) {
-   *   // 获取订单数据
-   *   const ordersData = await sdk.data.orders(mintAccount.toString(), {
-   *     type: 'down_orders',
-   *     limit: sdk.MAX_ORDERS_COUNT + 1
-   *   });
-   *   
-   *   // 查找订单位置用于后续处理逻辑
-   *   const orderIndex = sdk.findOrderIndex(ordersData.data.orders, closeOrderPubkey);
-   *   
-   *   if (orderIndex !== 200) {
-   *     console.log(`找到目标订单，位置: ${orderIndex}`);
-   *     // 继续处理订单相关逻辑...
-   *   } else {
-   *     throw new Error('目标订单不存在于当前订单列表中');
-   *   }
-   * }
-   */
-  findOrderIndex(orders, targetOrderPda) {
-    return OrderUtils.findOrderIndex(orders, targetOrderPda);
-  }
-
-  // ========== Debug File Management Methods ==========
-
-  /**
-   * 初始化调试文件，删除旧文件
-   * Initialize debug files, delete old files
-   * @private
-   */
-  _initDebugFiles() {
-    if (!this.debugLogPath || !IS_NODE || !fs || !path) {
-      return; // 浏览器环境或文件系统不可用
-    }
-
-    try {
-      const files = ['orderPda.txt', 'orderOpen.txt'];
-      files.forEach(file => {
-        const filePath = path.join(this.debugLogPath, file);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      });
-    } catch (error) {
-      console.warn('Warning: Failed to initialize debug files:', error.message);
-    }
-  }
-
-  /**
-   * 安全地写入调试日志
-   * Safely write debug log
-   * @private
-   * @param {string} fileName - 文件名
-   * @param {string} content - 内容
-   */
-  _writeDebugLog(fileName, content) {
-    if (!this.debugLogPath || !IS_NODE || !fs || !path) {
-      return; // 静默失败，不报错
-    }
-
-    try {
-      const filePath = path.join(this.debugLogPath, fileName);
-      fs.appendFileSync(filePath, content);
-    } catch (error) {
-      console.warn(`Warning: Failed to write debug log to ${fileName}:`, error.message);
-    }
-  }
-
   // ========== Unified Data Interface Routing Method ==========
 
   /**
@@ -366,5 +191,9 @@ class PinPetSdk {
   }
 
 }
+
+// Add utility classes as static properties to PinPetSdk class
+PinPetSdk.CurveAMM = CurveAMM;
+PinPetSdk.OrderUtils = OrderUtils;
 
 module.exports = PinPetSdk;

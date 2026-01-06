@@ -1,6 +1,6 @@
 const { PublicKey, Transaction, SystemProgram } = require('@solana/web3.js');
 const anchor = require('@coral-xyz/anchor');
-// 统一使用 buffer 包，所有平台一致
+// Use buffer package consistently across all platforms
 const { Buffer } = require('buffer');
 
 /**
@@ -73,7 +73,7 @@ class ParamModule {
    * @returns {Promise<Object>} Parameters account data
    */
   async getParams(partner) {
-    // 计算合作伙伴参数账户地址
+    // Calculate partner parameters account address
     const [paramsAccount] = PublicKey.findProgramAddressSync(
       [Buffer.from("params"), partner.toBuffer()],
       this.sdk.programId
@@ -117,13 +117,13 @@ class ParamModule {
     );
 
     try {
-      // 检查账户是否存在
+      // Check if account exists
       const accountInfo = await this.sdk.connection.getAccountInfo(adminAccount);
       if (!accountInfo) {
         throw new Error('Admin account does not exist');
       }
-      
-      // 尝试使用 Anchor 解析数据
+
+      // Try to parse data using Anchor
       if (this.sdk.program.account.admin) {
         const adminData = await this.sdk.program.account.admin.fetch(adminAccount);
         return {
@@ -131,7 +131,7 @@ class ParamModule {
           data: adminData
         };
       } else {
-        // 如果 Anchor 不可用，返回基本信息
+        // If Anchor is not available, return basic info
         return {
           address: adminAccount,
           accountInfo: accountInfo

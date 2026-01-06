@@ -17,7 +17,7 @@ const copyTypes = () => ({
   generateBundle() {
     const sourceTypesPath = resolve(__dirname, 'src/types/index.d.ts');
     const targetTypesPath = resolve(__dirname, 'dist/index.d.ts');
-    
+
     if (existsSync(sourceTypesPath)) {
       copyFileSync(sourceTypesPath, targetTypesPath);
       console.log('✅ TypeScript declaration file copied to dist/index.d.ts');
@@ -27,15 +27,43 @@ const copyTypes = () => ({
   }
 });
 
+// 自定义插件：为模块添加命名导出
+const addNamedExports = () => ({
+  name: 'add-named-exports',
+  renderChunk(code, _chunk, options) {
+    if (options.format === 'es') {
+      // 在文件末尾添加命名导出 - 直接从 src 对象解构导出
+      const namedExports = `
+// Re-export all named exports for ESM compatibility
+const { PinPetSdk: _PinPetSdk, SPINPET_PROGRAM_ID: _SPINPET_PROGRAM_ID, getDefaultOptions: _getDefaultOptions, OrderUtils: _OrderUtils, CurveAMM: _CurveAMM } = src;
+export { _PinPetSdk as PinPetSdk, _SPINPET_PROGRAM_ID as SPINPET_PROGRAM_ID, _getDefaultOptions as getDefaultOptions, _OrderUtils as OrderUtils, _CurveAMM as CurveAMM };
+`;
+      return code + namedExports;
+    } else if (options.format === 'cjs') {
+      // 为 CJS 添加命名导出 - 直接从 src 对象中提取
+      const namedExports = `
+// Re-export all named exports for CJS compatibility
+exports.PinPetSdk = src.PinPetSdk || src.default;
+exports.SPINPET_PROGRAM_ID = src.SPINPET_PROGRAM_ID;
+exports.getDefaultOptions = src.getDefaultOptions;
+exports.OrderUtils = src.OrderUtils;
+exports.CurveAMM = src.CurveAMM;
+`;
+      return code + namedExports;
+    }
+    return code;
+  }
+});
+
 // Rollup配置
 module.exports = [
   // CommonJS (适用于Node.js)
   {
     input: 'src/index.js',
     output: {
-      file: 'dist/spin-sdk.cjs.js',
+      file: 'dist/pinpet-sdk.cjs.js',
       format: 'cjs',
-      name: 'SpinSDK',
+      name: 'PinPetSDK',
       exports: 'named',
       sourcemap: !isProd,
     },
@@ -51,18 +79,21 @@ module.exports = [
         'process.env.NODE_ENV': JSON.stringify(env),
         preventAssignment: true,
       }),
+      addNamedExports(),
       isProd && terser(),
       copyTypes(),
     ].filter(Boolean),
   },
-  
+
   // ESM (适用于现代浏览器和构建工具)
   {
     input: 'src/index.js',
     output: {
-      file: 'dist/spin-sdk.esm.js',
+      file: 'dist/pinpet-sdk.esm.js',
       format: 'es',
       sourcemap: !isProd,
+      preserveModules: false,
+      interop: 'auto',
     },
     external: ['@solana/web3.js', '@coral-xyz/anchor'],
     plugins: [
@@ -91,19 +122,22 @@ module.exports = [
       commonjs({
         include: ['node_modules/**', 'src/**'],
         transformMixedEsModules: true,
+        defaultIsModuleExports: true,
+        esmExternals: true,
       }),
+      addNamedExports(),
       isProd && terser(),
       copyTypes(),
     ].filter(Boolean),
   },
-  
+
   // UMD (通用模块，可在浏览器中直接使用)
   {
     input: 'src/index.js',
     output: {
-      file: 'dist/spin-sdk.js',
+      file: 'dist/pinpet-sdk.js',
       format: 'umd',
-      name: 'SpinSDK',
+      name: 'PinPetSDK',
       exports: 'named',
       sourcemap: !isProd,
       globals: {

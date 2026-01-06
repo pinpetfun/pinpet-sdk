@@ -13,13 +13,12 @@ const { PublicKey } = require('@solana/web3.js');
 const TradingModule = require('./modules/trading');
 const TokenModule = require('./modules/token');
 
-
-
 // Import configuration utilities
 const { getDefaultOptions } = require('./utils/constants');
 
 // Import utility classes
 const OrderUtils = require('./utils/orderUtils');
+const CurveAMM = require('./utils/curve_amm');
 
 // Import constants (if needed)
 const SPINPET_PROGRAM_ID = new PublicKey(spinpetIdl.address); // Replace with actual program ID
@@ -28,16 +27,17 @@ const SPINPET_PROGRAM_ID = new PublicKey(spinpetIdl.address); // Replace with ac
 module.exports = {
   // Main SDK class
   PinPetSdk,
-  
+
   // Constants
   SPINPET_PROGRAM_ID,
-  
+
   // Configuration utilities
   getDefaultOptions,
 
   // Utility classes
   OrderUtils,
-};
+  CurveAMM,
 
-// Default export SDK class
-module.exports.default = PinPetSdk;
+  // Default export SDK class
+  default: PinPetSdk,
+};

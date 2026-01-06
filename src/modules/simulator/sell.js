@@ -56,14 +56,12 @@ async function simulateSell(mint, sellTokenAmount) {
             return {
                 success: false,
                 errorCode: 'API_ERROR',
-                errorMessage: `获取价格信息失败: ${error.message} / Failed to get price info: ${error.message}`,
+                errorMessage: `Failed to get price info: ${error.message}`,
                 data: null
             };
         }
 
-
-
-        // 3. 获取做多订单列表 / Get long order list (down_orders)
+        // Get long order list (down_orders)
         let ordersData;
         try {
             ordersData = await this.sdk.data.orders(mint, {
@@ -74,7 +72,7 @@ async function simulateSell(mint, sellTokenAmount) {
                 return {
                     success: false,
                     errorCode: 'API_ERROR',
-                    errorMessage: '无法获取做多订单数据 / Cannot get long order data',
+                    errorMessage: 'Cannot get long order data',
                     data: null
                 };
             }
@@ -82,12 +80,12 @@ async function simulateSell(mint, sellTokenAmount) {
             return {
                 success: false,
                 errorCode: 'API_ERROR',
-                errorMessage: `获取订单数据失败: ${error.message} / Failed to get order data: ${error.message}`,
+                errorMessage: `Failed to get order data: ${error.message}`,
                 data: null
             };
         }
 
-        // 4. 转换订单数据格式 / Convert order data format
+        // Convert order data format
         const longOrderList = ordersData.data.orders.map(order => ({
             ...order,
             lockLpStartPrice: order.lock_lp_start_price,
@@ -96,13 +94,13 @@ async function simulateSell(mint, sellTokenAmount) {
             lockLpTokenAmount: BigInt(order.lock_lp_token_amount)
         }));
 
-        // 如果没有订单，添加 null 表示无限制
+        // If no orders, add null to represent no limit
         if (longOrderList.length === 0) {
             longOrderList.push(null);
         }
 
-        // 5. 开始 AMM 计算 / Start AMM calculation
-        // 计算理想情况下的基准SOL数量（完全无滑点）
+        // Start AMM calculation
+        // Calculate ideal SOL amount without slippage
         const idealTradeResult = CurveAMM.sellFromPriceWithTokenInput(currentPriceU64, sellTokenAmountU64);
         let idealSolAmount = 0n;
         if (idealTradeResult) {
@@ -110,47 +108,47 @@ async function simulateSell(mint, sellTokenAmount) {
         }
         const idealTokenAmount = sellTokenAmountU64;
 
-        // 初始化价格区间和流动性相关变量
+        // Initialize price range and liquidity related variables
         let totalPriceSpan = 0n;
         let totalLiquiditySolAmount = 0n;
         let totalLiquidityTokenAmount = 0n;
         let targetReachedAtSegmentIndex = -1;
         let minAllowedPrice = 0n;
 
-        // 构建价格区间分析列表
+        // Build price segment analysis list
         const priceSegmentAnalysisList = new Array(longOrderList.length);
 
-        // 遍历订单列表并计算每个价格区间的参数
+        // Iterate orders and calculate parameters for each price segment
         for (let segmentIndex = 0; segmentIndex < longOrderList.length; segmentIndex++) {
             let segmentStartPrice, segmentEndPrice;
 
-            // 根据区间位置确定起始和结束价格
+            // Determine start and end prices based on segment position
             if (segmentIndex === 0) {
-                // 第一个区间：从当前价格开始（向下卖出）
+                // First segment: start from current price (sell downward)
                 segmentStartPrice = currentPriceU64;
 
                 if (longOrderList[0] === null) {
-                    // 如果第一个订单就是null，表示没有任何订单
-                    segmentEndPrice = CurveAMM.MIN_U128_PRICE; // 最低价格
-                    minAllowedPrice = CurveAMM.MIN_U128_PRICE; // 无限制到最低价格
+                    // If first order is null, no orders exist
+                    segmentEndPrice = CurveAMM.MIN_U128_PRICE; // Minimum price
+                    minAllowedPrice = CurveAMM.MIN_U128_PRICE; // Unrestricted to minimum price
                 } else {
-                    // 到第一个订单结束价格的下一个单位
+                    // To one unit before first order start price
                     segmentEndPrice = BigInt(longOrderList[0].lockLpStartPrice);
                     minAllowedPrice = BigInt(longOrderList[0].lockLpStartPrice);
                 }
             } else if (longOrderList[segmentIndex] === null) {
-                // 当前遍历到null（链表结束）
+                // Current iteration reaches null (chain ends)
                 segmentStartPrice = BigInt(longOrderList[segmentIndex - 1].lockLpEndPrice);
-                segmentEndPrice = CurveAMM.MIN_U128_PRICE; // 到最低价格
+                segmentEndPrice = CurveAMM.MIN_U128_PRICE; // To minimum price
             } else {
-                // 普通情况：位于两个订单之间的空隙
+                // Normal case: gap between two orders
                 segmentStartPrice = BigInt(longOrderList[segmentIndex - 1].lockLpEndPrice);
                 segmentEndPrice = BigInt(longOrderList[segmentIndex].lockLpStartPrice);
             }
 
-            // 验证价格区间的有效性
+            // Validate price segment validity
             if (segmentStartPrice < segmentEndPrice) {
-                // 价格区间无效，跳过（卖出时起始价格应该高于结束价格）
+                // Invalid price segment, skip (for sell, start price should be higher than end price)
                 priceSegmentAnalysisList[segmentIndex] = {
                     startPrice: segmentStartPrice,
                     endPrice: segmentEndPrice,
@@ -172,11 +170,11 @@ async function simulateSell(mint, sellTokenAmount) {
                 continue;
             }
 
-            // 使用AMM计算该区间的交易参数（卖出：从高价格到低价格）
+            // Use AMM to calculate transaction parameters for this segment (sell: from high to low price)
             const segmentTradeResult = CurveAMM.sellFromPriceToPrice(segmentStartPrice, segmentEndPrice);
 
             if (!segmentTradeResult) {
-                // AMM计算失败
+                // AMM calculation failed
                 priceSegmentAnalysisList[segmentIndex] = {
                     startPrice: segmentStartPrice,
                     endPrice: segmentEndPrice,
@@ -185,7 +183,7 @@ async function simulateSell(mint, sellTokenAmount) {
                     isValid: false
                 };
             } else {
-                // 计算成功，保存结果
+                // Calculation successful, save result
                 const [consumedTokenAmount, obtainedSolAmount] = segmentTradeResult;
                 priceSegmentAnalysisList[segmentIndex] = {
                     startPrice: segmentStartPrice,
@@ -197,7 +195,7 @@ async function simulateSell(mint, sellTokenAmount) {
             }
         }
 
-        // 累计计算总流动性深度
+        // Accumulate total liquidity depth
         for (let i = 0; i < priceSegmentAnalysisList.length; i++) {
             const segment = priceSegmentAnalysisList[i];
 
@@ -205,28 +203,28 @@ async function simulateSell(mint, sellTokenAmount) {
                 totalLiquiditySolAmount += BigInt(segment.obtainedSolAmount);
                 totalLiquidityTokenAmount += BigInt(segment.consumedTokenAmount);
 
-                // Token输入：检查累计的Token数量是否已经达到目标
+                // Token input: check if cumulative token amount has reached target
                 if (totalLiquidityTokenAmount >= sellTokenAmountU64 && targetReachedAtSegmentIndex === -1) {
                     targetReachedAtSegmentIndex = i;
                 }
             }
         }
 
-        // 计算实际交易参数
+        // Calculate actual transaction parameters
         let actualObtainedSolAmount = 0n;
         let actualConsumedTokenAmount = 0n;
         let transactionCompletionRate = 0.0;
 
         if (targetReachedAtSegmentIndex !== -1) {
-            // 可以100%完成交易
+            // Can complete 100% of transaction
             transactionCompletionRate = 100.0;
 
             for (let i = 0; i <= targetReachedAtSegmentIndex; i++) {
                 const currentSegment = priceSegmentAnalysisList[i];
 
                 if (i === targetReachedAtSegmentIndex) {
-                    // 最后一个区间：可能只需要部分交易
-                    // Token输入：计算剩余需要卖出的Token
+                    // Last segment: may only need partial transaction
+                    // Token input: calculate remaining token to sell
                     const remainingTokenToSell = sellTokenAmountU64 - actualConsumedTokenAmount;
                     const partialTradeResult = CurveAMM.sellFromPriceWithTokenInput(
                         currentSegment.startPrice,
@@ -240,14 +238,14 @@ async function simulateSell(mint, sellTokenAmount) {
                         totalPriceSpan += absoluteValue(currentSegment.startPrice - finalPrice) + 1n;
                     }
                 } else {
-                    // 完整使用该区间
+                    // Use this segment completely
                     actualObtainedSolAmount += currentSegment.obtainedSolAmount;
                     actualConsumedTokenAmount += currentSegment.consumedTokenAmount;
                     totalPriceSpan += absoluteValue(currentSegment.startPrice - currentSegment.endPrice) + 1n;
                 }
             }
         } else {
-            // 无法完全完成交易，使用所有可用流动性
+            // Cannot complete transaction fully, use all available liquidity
             for (let i = 0; i < priceSegmentAnalysisList.length; i++) {
                 const segment = priceSegmentAnalysisList[i];
                 if (segment.isValid) {
@@ -257,7 +255,7 @@ async function simulateSell(mint, sellTokenAmount) {
                 }
             }
 
-            // 计算交易完成率
+            // Calculate transaction completion rate
             if (sellTokenAmountU64 > 0n) {
                 transactionCompletionRate = parseFloat(
                     CurveAMM.u64ToTokenDecimal(actualConsumedTokenAmount)
@@ -267,15 +265,15 @@ async function simulateSell(mint, sellTokenAmount) {
                 );
             }
 
-            // 重新计算理论参数（基于实际可达到的数量）
+            // Recalculate theoretical parameters (based on actual obtainable amount)
             const theoreticalTradeResult = CurveAMM.sellFromPriceWithTokenInput(currentPriceU64, actualConsumedTokenAmount);
             if (theoreticalTradeResult) {
                 const [, theoreticalSolObtained] = theoreticalTradeResult;
-                // 更新理论SOL数量
+                // Update theoretical SOL amount
             }
         }
 
-        // 计算最小滑点百分比
+        // Calculate minimum slippage percentage
         const minimumSlippagePercentage = Math.abs(
             100.0 * (
                 CurveAMM.u64ToSolDecimal(idealSolAmount)
@@ -285,7 +283,7 @@ async function simulateSell(mint, sellTokenAmount) {
             )
         );
 
-        // 6. 返回分析结果 / Return analysis result
+        // Return analysis result
         return {
             success: true,
             errorCode: null,
@@ -300,7 +298,7 @@ async function simulateSell(mint, sellTokenAmount) {
                 idealTokenAmount: idealTokenAmount,
                 actualObtainedSolAmount: actualObtainedSolAmount,
                 actualConsumedTokenAmount: actualConsumedTokenAmount,
-                theoreticalSolAmount: idealSolAmount, // 理论目标SOL数量
+                theoreticalSolAmount: idealSolAmount,
                 minimumSlippagePercentage: minimumSlippagePercentage,
                 totalLiquiditySolAmount: totalLiquiditySolAmount,
                 totalLiquidityTokenAmount: totalLiquidityTokenAmount
@@ -311,7 +309,7 @@ async function simulateSell(mint, sellTokenAmount) {
         return {
             success: false,
             errorCode: 'DATA_ERROR',
-            errorMessage: `计算过程中发生错误: ${error.message} / Error during calculation: ${error.message}`,
+            errorMessage: `Error during calculation: ${error.message}`,
             data: null
         };
     }

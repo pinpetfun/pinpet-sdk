@@ -1,685 +1,364 @@
 # PinPet SDK
 
-A JavaScript SDK for interacting with PinPet protocol-related Solana Anchor smart contracts. The SDK supports both Node.js and browser environments, providing modular functionality for trading, token management, order management, and more.
+A JavaScript/TypeScript SDK for interacting with the SpinPet protocol on the Solana blockchain. Supports both Node.js and browser environments, providing modular functionality for trading, token management, order management, and more.
 
+[![npm version](https://img.shields.io/npm/v/pinpet-sdk.svg)](https://www.npmjs.com/package/pinpet-sdk)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## PinPet Project Repositories
+## Features
 
-- **[Technical Documentation](https://doc.pinpet.fun/#/)** - Multi-language technical specification docs
-- **[pinpet-sdk](https://github.com/pinpetfun/pinpet-sdk)** - SDK for trading operations
-- **[pinpet-anchor](https://github.com/pinpetfun/pinpet-anchor)** - Solana smart contract code
-- **[pinpet-web](https://github.com/pinpetfun/pinpet-web)** - Website frontend code
-- **[pinpet-server](https://github.com/pinpetfun/pinpet-server)** - Transaction acceleration server code
+- =€ **Spot Trading**: Direct buy and sell operations for tokens
+- =Ê **Margin Trading**: Leverage trading with long/short positions
+- = **Dual Data Sources**: Fast API and reliable on-chain data access
+- =° **Token Creation**: Create and launch new tokens on the protocol
+- <¯ **Trade Simulation**: Pre-calculate slippage and costs before execution
+- =à **Comprehensive Tooling**: Order management, AMM calculations, and utilities
+- < **Cross-Platform**: Works in Node.js and modern browsers
+- =æ **Modular Design**: Clean, intuitive API with separate functional modules
 
-
-
-## Installation 
+## Installation
 
 ```bash
-npm install pinpet-sdk
+npm install pinpet-sdk @solana/web3.js @coral-xyz/anchor
 ```
 
-**NPM Package**: https://www.npmjs.com/package/pinpet-sdk
+or with Yarn:
 
-## Table of Contents
-
-1. [SDK Initialization](#sdk-initialization)
-2. [Core Configuration](#core-configuration)
-3. [Trading Module - Trading Functions](#trading-module---trading-functions)
-4. [Fast Module - Data Retrieval](#fast-module---data-retrieval)
-5. [Token Module - Token Management](#token-module---token-management)
-6. [Param Module - Parameter Management](#param-module---parameter-management)
-7. [Simulator Module - Trading Simulation](#simulator-module---trading-simulation)
-8. [Chain Module - On-chain Data Queries](#chain-module---on-chain-data-queries)
-9. [Utility Methods](#utility-methods)
-10. [Unified Data Interface Documentation](#unified-data-interface-documentation)
-
----
-
-## SDK Initialization
-
-### Constructor
-
-```javascript
-new PinPetSdk(connection, programId, options)
+```bash
+yarn add pinpet-sdk @solana/web3.js @coral-xyz/anchor
 ```
 
-**Parameters:**
-- `connection` *(Connection)*: Solana connection instance
-- `programId` *(PublicKey|string)*: Program ID
-- `options` *(Object)*: Optional configuration parameters
+## Quick Start
 
-**options Configuration:**
 ```javascript
-{
-  fee_recipient: "4nffmKaNrex34LkJ99RLxMt2BbgXeopUi8kJnom3YWbv",           // Fee recipient account
-  base_fee_recipient: "8fJpd2nteqkTEnXf4tG6d1MnP9p71KMCV4puc9vaq6kv",      // Base fee recipient account
-  params_account: "DVRnPDW1MvUhRhDfE1kU6aGHoQoufBCmQNbqUH4WFgUd",          // Parameters account
-  spin_fast_api_url: "http://192.168.18.36:8080",                         // FastAPI URL
-  defaultDataSource: "fast",                                              // Default data source, "fast" or "chain"
-  commitment: "confirmed",                                                 // Commitment level
-  preflightCommitment: "processed",                                        // Preflight commitment level
-  skipPreflight: false,                                                    // Whether to skip preflight
-  maxRetries: 3,                                                          // Maximum retry count
-  debug_log_path: null                                                    // Debug log path (optional)
-}
-```
-
-**Example:**
-```javascript
-const { Connection, PublicKey } = require('@solana/web3.js');
 const { PinPetSdk, getDefaultOptions, SPINPET_PROGRAM_ID } = require('pinpet-sdk');
+const { Connection } = require('@solana/web3.js');
+const anchor = require('@coral-xyz/anchor');
 
-// Create connection
-const connection = new Connection('http://localhost:8899', 'confirmed');
+// 1. Get network configuration
+const options = getDefaultOptions('MAINNET'); // or 'DEVNET', 'LOCALNET'
 
-// Get default configuration
-const options = getDefaultOptions('LOCALNET');
+// 2. Create connection
+const connection = new Connection(options.solanaEndpoint, 'confirmed');
 
-// Initialize SDK (Note: wallet parameter is no longer required)
-const sdk = new PinPetSdk(
-  connection, 
-  SPINPET_PROGRAM_ID, 
-  {
-    ...options,  // Include network-specific configuration
-    defaultDataSource: 'fast'  // 'fast' or 'chain'
-  }
-);
-```
+// 3. Initialize SDK
+const sdk = new PinPetSdk(connection, SPINPET_PROGRAM_ID, options);
 
----
-
-## Core Configuration
-
-### Constant Configuration
-
-- `sdk.MAX_ORDERS_COUNT`: 10 - Maximum orders processed per transaction
-- `sdk.FIND_MAX_ORDERS_COUNT`: 1000 - Maximum orders fetched when querying
-- `sdk.SUGGEST_LIQ_RATIO`: 975 - Suggested liquidity ratio when insufficient, in basis points (1000=100%)
-
-### Unified Data Interface
-
-SDK provides `sdk.data` unified data interface that automatically routes to fast or chain modules based on `defaultDataSource` configuration:
-
-```javascript
-// Get orders using default data source
-const ordersData = await sdk.data.orders(mint, { type: 'down_orders' });
-
-// Temporarily specify data source
-const ordersData = await sdk.data.orders(mint, { 
-  type: 'down_orders',
-  dataSource: 'chain'  // Temporarily use chain data source
-});
-
-// Get price data
-const price = await sdk.data.price(mint);
-
-// Get user orders
-const userOrders = await sdk.data.user_orders(user, mint, {
-  page: 1,
-  limit: 200,
-  order_by: 'start_time_desc'
-});
-```
-
----
-
-## Trading Module - Trading Functions
-
-### sdk.trading.buy() - Buy Tokens
-
-```javascript
-await sdk.trading.buy(params, options)
-```
-
-**Parameters:**
-- `params.mintAccount` *(string|PublicKey)*: Token mint account address
-- `params.buyTokenAmount` *(anchor.BN)*: Amount of tokens to purchase
-- `params.maxSolAmount` *(anchor.BN)*: Maximum SOL to spend
-- `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute units limit, default 1400000
-
-**Return Value:**
-```javascript
-{
-  transaction: Transaction,           // Transaction object
-  signers: [],                       // Signers array (empty array, only payer signature needed)
-  accounts: {                        // Related account information
-    mint: PublicKey,
-    curveAccount: PublicKey,
-    poolTokenAccount: PublicKey,
-    poolSolAccount: PublicKey,
-    userTokenAccount: PublicKey,
-    payer: PublicKey
-  },
-  orderData: {                       // Order data information
-    ordersUsed: number,              // Number of orders used
-    lpPairsCount: number,            // LP pairs count
-    lpPairs: Array,                  // LP pairs array
-    orderAccounts: Array             // Order accounts array
-  }
-}
-```
-
-**Example:**
-```javascript
+// 4. Example: Buy tokens
 const result = await sdk.trading.buy({
-  mintAccount: "HZBos3RNhExDcAtzmdKXhTd4sVcQFBiT3FDBgmBBMk7",
-  buyTokenAmount: new anchor.BN("1000000000"),    // 1 token (assuming 9 decimals)
-  maxSolAmount: new anchor.BN("2000000000"),      // 2 SOL
+  mintAccount: "TOKEN_ADDRESS",
+  buyTokenAmount: new anchor.BN('1000000'), // 1 token (6 decimals)
+  maxSolAmount: new anchor.BN('2000000000'), // 2 SOL (9 decimals)
   payer: wallet.publicKey
 });
 
-// Sign and send transaction
-const signature = await connection.sendTransaction(result.transaction, [wallet.payer]);
+// 5. Sign and send transaction
+result.transaction.feePayer = wallet.publicKey;
+result.transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+result.transaction.sign(wallet);
+
+const signature = await connection.sendRawTransaction(result.transaction.serialize());
+await connection.confirmTransaction(signature);
+
+console.log('Transaction successful!', signature);
 ```
 
-### sdk.trading.sell() - Sell Tokens
+## SDK Architecture
+
+The SDK is organized into functional modules, all accessible through the main `PinPetSdk` class:
 
 ```javascript
-await sdk.trading.sell(params, options)
+const sdk = new PinPetSdk(connection, SPINPET_PROGRAM_ID, options);
+
+// Trading operations
+await sdk.trading.buy({...});
+await sdk.trading.sell({...});
+await sdk.trading.long({...});
+await sdk.trading.short({...});
+
+// Data access (unified interface)
+const orders = await sdk.data.orders(mint, { type: 'down_orders' });
+const price = await sdk.data.price(mint);
+
+// Token creation
+await sdk.token.create({...});
+
+// Trade simulation
+const simulation = await sdk.simulator.simulateTokenBuy(mint, amount);
+
+// Utility tools
+await sdk.tools.approveTrade({...});
 ```
 
-**Parameters:**
-- `params.mintAccount` *(string|PublicKey)*: Token mint account address
-- `params.sellTokenAmount` *(anchor.BN)*: Amount of tokens to sell
-- `params.minSolOutput` *(anchor.BN)*: Minimum SOL output
-- `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute units limit, default 1400000
+## Module Overview
 
-**Return Value:** Same as `buy()` method
+| Module | Purpose | Key Methods |
+|--------|---------|-------------|
+| **TradingModule** | Execute trades | `buy`, `sell`, `long`, `short`, `closeLong`, `closeShort` |
+| **FastModule** | API data access | `mints`, `mint_info`, `orders`, `price`, `user_orders` |
+| **ChainModule** | On-chain data | `getCurveAccount`, `orders`, `price`, `user_orders` |
+| **TokenModule** | Token creation | `create`, `createAndBuy` |
+| **ParamModule** | Parameter management | `createParams`, `getParams`, `getAdmin` |
+| **SimulatorModule** | Trade simulation | `simulateTokenBuy`, `simulateTokenSell`, `simulateLongStopLoss` |
+| **ToolsModule** | Utility functions | `approveTrade`, `closeTradeCooldown`, `validateCooldown` |
+| **CurveAMM** | AMM calculations | `u128ToDecimal`, `buyFromPriceToPrice`, `sellFromPriceToPrice` |
 
-### sdk.trading.long() - Margin Long
+## Documentation
+
+### Quick Reference
+
+- =Ö **[Quick Start Guide](./doc/01-quick-start.md)** - Get up and running quickly
+- <× **[SDK Main Class](./doc/02-pinpet-sdk-main-class.md)** - Core initialization and configuration
+- =Ú **[Complete Documentation Index](./doc/README.md)** - Full documentation table of contents
+
+### Core Modules
+
+- **[Trading Module](./doc/03-trading-module.md)** - Spot and margin trading operations _(Translation in progress)_
+- **[Fast Module](./doc/04-fast-module.md)** - API-based data access _(Translation in progress)_
+- **[Chain Module](./doc/05-chain-module.md)** - On-chain data reading _(Translation in progress)_
+- **[Token Module](./doc/06-token-module.md)** - Token creation and management
+- **[Param Module](./doc/07-param-module.md)** - Partner parameter management
+- **[Simulator Module](./doc/08-simulator-module.md)** - Trade simulation and calculations _(Translation in progress)_
+
+### Utilities
+
+- **[CurveAMM Utility](./doc/09-curve-amm-utility.md)** - AMM curve calculations _(Translation in progress)_
+- **[Constants & Helpers](./doc/10-constants-and-helpers.md)** - Configuration and helper functions
+- **[Tools Module](./doc/11-tools-module.md)** - Trading utilities and cooldown management
+- **[Position Tab Guide](./doc/position-tab-guide.md)** - UI integration guide for positions
+
+### Language Options
+
+- <ú<ø **English Documentation**: [./doc/](./doc/) (Current)
+- <è<ó **-‡‡c**: [./doc_cn/](./doc_cn/)
+
+## Network Configuration
+
+The SDK supports three network environments:
 
 ```javascript
-await sdk.trading.long(params, options)
+// Mainnet (Production)
+const mainnetOptions = getDefaultOptions('MAINNET');
+
+// Devnet (Testing)
+const devnetOptions = getDefaultOptions('DEVNET');
+
+// Localnet (Local Development)
+const localnetOptions = getDefaultOptions('LOCALNET');
 ```
 
-**Parameters:**
-- `params.mintAccount` *(string|PublicKey)*: Token mint account address
-- `params.buyTokenAmount` *(anchor.BN)*: Amount of tokens to purchase
-- `params.maxSolAmount` *(anchor.BN)*: Maximum SOL to spend
-- `params.marginSol` *(anchor.BN)*: Margin amount
-- `params.closePrice` *(anchor.BN)*: Close price
-- `params.prevOrder` *(PublicKey|null)*: Previous order
-- `params.nextOrder` *(PublicKey|null)*: Next order
-- `params.payer` *(PublicKey)*: Payer public key
-- `options.computeUnits` *(number)*: Compute units limit, default 1400000
+## Data Source Options
 
-### sdk.trading.short() - Margin Short
+Choose between fast API access or reliable on-chain reading:
 
 ```javascript
-await sdk.trading.short(params, options)
-```
-
-### sdk.trading.closeLong() - Close Long Position
-
-```javascript
-await sdk.trading.closeLong(params, options)
-```
-
-### sdk.trading.closeShort() - Close Short Position
-
-```javascript
-await sdk.trading.closeShort(params, options)
-```
-
----
-
-## Fast Module - Data Retrieval
-
-### sdk.fast.mints() - Get Token List
-
-```javascript
-await sdk.fast.mints(options)
-```
-
-**Parameters:**
-- `options.page` *(number)*: Page number, default 1
-- `options.limit` *(number)*: Items per page, default 10
-- `options.sort_by` *(string)*: Sort method, default 'slot_asc'
-
-### sdk.fast.mint_info() - Get Token Details
-
-```javascript
-await sdk.fast.mint_info(mint)
-```
-
-**Parameters:**
-- `mint` *(string|Array)*: Token address or array of addresses
-
-### sdk.fast.orders() - Get Order Data
-
-```javascript
-await sdk.fast.orders(mint, options)
-```
-
-**Parameters:**
-- `mint` *(string)*: Token address
-- `options.type` *(string)*: Order type, "up_orders" (short) or "down_orders" (long)
-- `options.page` *(number)*: Page number, default 1
-- `options.limit` *(number)*: Items per page, default 500
-
-### sdk.fast.price() - Get Token Price
-
-```javascript
-await sdk.fast.price(mint)
-```
-
-**Parameters:**
-- `mint` *(string)*: Token address
-
-**Return Value:**
-- `string`: Latest price string
-
-### sdk.fast.user_orders() - Get User Orders
-
-```javascript
-await sdk.fast.user_orders(user, mint, options)
-```
-
-**Parameters:**
-- `user` *(string)*: User address
-- `mint` *(string)*: Token address
-- `options.page` *(number)*: Page number, default 1
-- `options.limit` *(number)*: Items per page, default 200
-- `options.order_by` *(string)*: Sort method, default 'start_time_desc'
-
----
-
-## Token Module - Token Management
-
-### sdk.token.create() - Create New Token
-
-```javascript
-await sdk.token.create(params)
-```
-
-**Parameters:**
-- `params.mint` *(Keypair)*: Token mint keypair
-- `params.name` *(string)*: Token name
-- `params.symbol` *(string)*: Token symbol
-- `params.uri` *(string)*: Metadata URI
-- `params.payer` *(PublicKey)*: Creator public key
-
----
-
-## Param Module - Parameter Management
-
-### sdk.param.createParams() - Create Partner Parameters
-
-```javascript
-await sdk.param.createParams(params)
-```
-
-**Parameters:**
-- `params.partner` *(PublicKey)*: Partner public key
-
-### sdk.param.getParams() - Get Partner Parameters
-
-```javascript
-await sdk.param.getParams(partner)
-```
-
-### sdk.param.getAdmin() - Get Admin Account
-
-```javascript
-await sdk.param.getAdmin()
-```
-
----
-
-## Simulator Module - Trading Simulation
-
-### sdk.simulator.simulateTokenBuy() - Simulate Token Buy Transaction
-
-This function simulates a token buy transaction for a specified token amount by analyzing existing short orders (up_orders) to calculate liquidity requirements, price impact, and feasibility analysis.
-
-```javascript
-await sdk.simulator.simulateTokenBuy(mint, buyTokenAmount, passOrder)
-```
-
-**Parameters:**
-- `mint` *(string)*: Token mint account address
-- `buyTokenAmount` *(bigint|string|number)*: Target purchase token amount (u64 format, precision 10^6)
-- `passOrder` *(string|null)*: Optional skip order PDA address
-
-**Return Value:**
-```javascript
-{
-  // Complete liquidity calculation result
-  liqResult: {
-    free_lp_sol_amount_sum: bigint,        // Total available free liquidity SOL amount
-    free_lp_token_amount_sum: bigint,      // Total available free liquidity token amount
-    lock_lp_sol_amount_sum: bigint,        // Total locked liquidity SOL amount
-    lock_lp_token_amount_sum: bigint,      // Total locked liquidity token amount
-    has_infinite_lp: boolean,              // Whether includes infinite liquidity
-    pass_order_id: number,                 // Skipped order index position in array
-    force_close_num: number,               // Number of orders requiring force closure
-    ideal_lp_sol_amount: bigint,           // Ideal SOL usage amount
-    real_lp_sol_amount: bigint             // Actual SOL usage amount
-  },
-  
-  // Transaction completion analysis
-  completion: string,                      // Purchase completion percentage
-  
-  // Price slippage analysis
-  slippage: string,                        // Price slippage percentage
-  
-  // Suggested trading parameters
-  suggestedTokenAmount: string,            // Suggested token purchase amount
-  suggestedSolAmount: string               // Suggested SOL amount needed
-}
-```
-
-### sdk.simulator.simulateTokenSell() - Simulate Token Sell Transaction
-
-This function simulates a token sell transaction for a specified token amount by analyzing existing long orders (down_orders).
-
-```javascript
-await sdk.simulator.simulateTokenSell(mint, sellTokenAmount, passOrder)
-```
-
-### sdk.simulator.simulateLongStopLoss() - Simulate Long Stop Loss Analysis
-
-This function simulates stop loss price calculation for long positions by analyzing existing order linked lists.
-
-```javascript
-await sdk.simulator.simulateLongStopLoss(mint, buyTokenAmount, stopLossPrice, lastPrice, ordersData)
-```
-
-### sdk.simulator.simulateSellStopLoss() - Simulate Short Stop Loss Analysis
-
-This function simulates stop loss price calculation for short positions by analyzing existing short order linked lists.
-
-```javascript
-await sdk.simulator.simulateSellStopLoss(mint, sellTokenAmount, stopLossPrice, lastPrice, ordersData)
-```
-
----
-
-## Chain Module - On-chain Data Queries
-
-Chain module provides functionality to read account data directly from the Solana blockchain. When auxiliary servers are unavailable, this module can be used to obtain real-time on-chain data including liquidity pool status, account balances, etc.
-
-### sdk.chain.getCurveAccount() - Get Complete Liquidity Pool Data
-
-This is the core method of the Chain module, used to get complete lending liquidity pool account data for a specified token.
-
-```javascript
-await sdk.chain.getCurveAccount(mint)
-```
-
-**Parameters:**
-- `mint` *(string|PublicKey)*: Token mint account address
-
-**Return Value:**
-```javascript
-{
-  // Core Reserve Data
-  lpTokenReserve: bigint,              // LP Token reserve amount
-  lpSolReserve: bigint,                // LP SOL reserve amount
-  price: bigint,                       // Current token price
-  borrowTokenReserve: bigint,          // Borrow Token reserve amount
-  borrowSolReserve: bigint,            // Borrow SOL reserve amount
-
-  // Fee and Parameter Configuration
-  swapFee: number,                     // Swap fee rate in basis points
-  borrowFee: number,                   // Borrow fee rate in basis points
-  feeDiscountFlag: boolean,            // Fee discount flag
-  feeSplit: number,                    // Fee split ratio
-  borrowDuration: number,              // Borrow duration in seconds
-  bump: number,                        // curve_account PDA bump seed
-
-  // Account Addresses
-  baseFeeRecipient: string,            // Base fee recipient address
-  feeRecipient: string,                // Fee recipient address
-  mint: string,                        // Token mint account address
-  upHead: string|null,                 // Up orders linked list head
-  downHead: string|null,               // Down orders linked list head
-  poolTokenAccount: string,            // Pool token account address
-  poolSolAccount: string,              // Pool SOL account address
-
-  // Balance Information
-  baseFeeRecipientBalance: number,     // Base fee recipient SOL balance
-  feeRecipientBalance: number,         // Fee recipient SOL balance
-  poolTokenBalance: bigint,            // Pool token account token balance
-  poolSolBalance: number,              // Pool SOL account SOL balance
-
-  // Metadata
-  _metadata: {
-    accountAddress: string,            // curve_account complete address
-    mintAddress: string                // Input token mint address
-  }
-}
-```
-
-### sdk.chain.getCurveAccountBatch() - Batch Get Liquidity Pool Data
-
-```javascript
-await sdk.chain.getCurveAccountBatch(mints)
-```
-
-### sdk.chain.getCurveAccountAddress() - Calculate Liquidity Pool Address
-
-```javascript
-sdk.chain.getCurveAccountAddress(mint)
-```
-
----
-
-## Utility Methods
-
-### SDK Built-in Utility Methods
-
-SDK provides convenient utility methods that can be called directly through SDK instance:
-
-#### sdk.buildLpPairs() - Build LP Pairs Array
-
-```javascript
-sdk.buildLpPairs(orders, direction, price)
-```
-
-#### sdk.buildOrderAccounts() - Build Order Accounts Array
-
-```javascript
-sdk.buildOrderAccounts(orders)
-```
-
-#### sdk.findPrevNext() - Find Previous and Next Order Nodes
-
-```javascript
-sdk.findPrevNext(orders, findOrderPda)
-```
-
-#### sdk.findOrderIndex() - Get Order Position in Array
-
-```javascript
-sdk.findOrderIndex(orders, targetOrderPda)
-```
-
-### Network Configuration
-
-```javascript
-const { getDefaultOptions } = require('pinpet-sdk');
-
-// Get default configuration
-const options = getDefaultOptions('MAINNET');  // 'MAINNET' | 'TESTNET' | 'LOCALNET'
-```
-
-**Available Networks:**
-- `MAINNET`: Mainnet configuration
-- `TESTNET`: Testnet configuration  
-- `LOCALNET`: Local network configuration
-
----
-
-## Unified Data Interface Documentation
-
-### Data Source Configuration
-
-SDK supports two data sources:
-
-1. **fast** - API data source (default): Fast data retrieval through FastAPI server, fast but requires API service dependency
-2. **chain** - On-chain data source: Direct blockchain data reading, more reliable but may have delays
-
-### Configuration Methods
-
-```javascript
-// Global configuration of default data source
-const sdk = new PinPetSdk(connection, programId, {
+// Fast API (default) - Quick responses, slight latency
+const sdk = new PinPetSdk(connection, SPINPET_PROGRAM_ID, {
   ...options,
-  defaultDataSource: 'fast'  // or 'chain'
+  defaultDataSource: 'fast'
 });
 
-// Use default data source
-const ordersData = await sdk.data.orders(mint, { type: 'down_orders' });
+// On-chain direct reading - More reliable, slower
+const sdk = new PinPetSdk(connection, SPINPET_PROGRAM_ID, {
+  ...options,
+  defaultDataSource: 'chain'
+});
 
-// Temporarily specify data source
-const ordersData = await sdk.data.orders(mint, { 
+// Or switch temporarily per call
+const orders = await sdk.data.orders(mint, {
   type: 'down_orders',
-  dataSource: 'chain'  // Temporarily use chain data source
+  dataSource: 'chain' // Override default
 });
 ```
 
-### Core Unified Interfaces
+## Key Concepts
 
-#### sdk.data.orders() - Get Order Data (Unified Interface)
+### Precision Handling
 
-```javascript
-await sdk.data.orders(mint, options)
-```
-
-**Parameters:**
-- `mint` *(string)*: Token mint account address
-- `options` *(Object)*: Query options
-
-**options Parameters:**
-```javascript
-{
-  type: "down_orders" | "up_orders",    // Required: Order type
-                                        // "down_orders" = Long orders (buy low)
-                                        // "up_orders" = Short orders (sell high)
-  
-  page: number,                         // Optional: Page number, default 1
-  limit: number,                        // Optional: Items per page, default 500
-  dataSource: "fast" | "chain"          // Optional: Temporarily specify data source
-}
-```
-
-#### sdk.data.price() - Get Price Data (Unified Interface)
+- **SOL**: 9 decimal places (lamports) - `1 SOL = 1,000,000,000 lamports`
+- **Tokens**: 6 decimal places - `1 Token = 1,000,000 units`
+- **Price**: u128 format with 28-digit precision
 
 ```javascript
-await sdk.data.price(mint, options)
+// SOL amounts
+const oneSol = new anchor.BN('1000000000'); // 1 SOL
+
+// Token amounts
+const oneToken = new anchor.BN('1000000'); // 1 Token
+
+// Price conversion
+const { CurveAMM } = require('pinpet-sdk');
+const decimalPrice = CurveAMM.u128ToDecimal(priceU128);
+const priceU128 = CurveAMM.decimalToU128(decimalPrice);
 ```
 
-**Parameters:**
-- `mint` *(string)*: Token mint account address
-- `options` *(Object, optional)*: Query options
+### Transaction Signing
 
-**Return Value:**
-- **Type**: `string`
-- **Format**: u128 price string
-- **Example**: `"13514066072452801812769"`
-
-#### sdk.data.user_orders() - Get User Orders (Unified Interface)
+The SDK returns unsigned transactions for security and wallet compatibility:
 
 ```javascript
-await sdk.data.user_orders(user, mint, options)
+// SDK builds the transaction
+const result = await sdk.trading.buy({...});
+
+// You control the signing
+result.transaction.feePayer = wallet.publicKey;
+result.transaction.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
+
+// Sign with your wallet
+const signature = await wallet.sendTransaction(result.transaction, connection);
 ```
 
-**Parameters:**
-- `user` *(string)*: User wallet address
-- `mint` *(string)*: Token mint account address
-- `options` *(Object, optional)*: Query options
+## Example Use Cases
 
----
-
-## Complete Usage Example
+### Spot Trading
 
 ```javascript
-const { Connection, PublicKey } = require('@solana/web3.js');
-const anchor = require('@coral-xyz/anchor');
-const { PinPetSdk, getDefaultOptions, SPINPET_PROGRAM_ID } = require('pinpet-sdk');
+// Buy tokens
+const buyResult = await sdk.trading.buy({
+  mintAccount: mint,
+  buyTokenAmount: new anchor.BN('1000000'),
+  maxSolAmount: new anchor.BN('2000000000'),
+  payer: wallet.publicKey
+});
 
-async function example() {
-  // 1. Create connection
-  const connection = new Connection('http://localhost:8899', 'confirmed');
-  
-  // 2. Get default configuration
-  const options = getDefaultOptions('LOCALNET');
-  
-  // 3. Initialize SDK (Note: wallet parameter removed)
-  const sdk = new PinPetSdk(connection, SPINPET_PROGRAM_ID, {
-    ...options,
-    defaultDataSource: 'fast'
-  });
-  
-  // 4. Use various features
-  
-  // Get token list
-  const mints = await sdk.fast.mints();
-  console.log('Token list:', mints.data.mints);
-  
-  // Get token details
-  const mintInfo = await sdk.fast.mint_info(mints.data.mints[0]);
-  console.log('Token details:', mintInfo.data.details[0]);
-  
-  // Use unified data interface to get orders and price
-  const ordersData = await sdk.data.orders(mints.data.mints[0], { type: 'down_orders' });
-  const price = await sdk.data.price(mints.data.mints[0]);
-  
-  // Simulate buy
-  const buyAnalysis = await sdk.simulator.simulateTokenBuy(
-    mints.data.mints[0], 
-    '1000000000'  // 1 token
-  );
-  console.log('Buy analysis:', buyAnalysis);
-  
-  // Execute buy transaction (needs to provide payer parameter)
-  const buyResult = await sdk.trading.buy({
-    mintAccount: mints.data.mints[0],
-    buyTokenAmount: new anchor.BN("1000000000"),
-    maxSolAmount: new anchor.BN("2000000000"),
-    payer: yourWalletPublicKey  // Need to provide payer public key
-  });
-  
-  // Sign and send transaction (needs external wallet signature)
-  const signature = await connection.sendTransaction(buyResult.transaction, [yourWalletKeypair]);
-  console.log('Transaction signature:', signature);
-}
+// Sell tokens
+const sellResult = await sdk.trading.sell({
+  mintAccount: mint,
+  sellTokenAmount: new anchor.BN('1000000'),
+  minSolOutput: new anchor.BN('1800000000'),
+  payer: wallet.publicKey
+});
 ```
 
----
+### Margin Trading
+
+```javascript
+// Open long position
+const longResult = await sdk.trading.long({
+  mintAccount: mint,
+  buyTokenAmount: new anchor.BN('10000000'),
+  maxSolAmount: new anchor.BN('20000000000'),
+  marginSol: new anchor.BN('5000000000'),
+  closePrice: new anchor.BN('...'),
+  closeInsertIndices: [...],
+  payer: wallet.publicKey
+});
+
+// Close long position
+const closeResult = await sdk.trading.closeLong({
+  mintAccount: mint,
+  sellTokenAmount: new anchor.BN('10000000'),
+  minSolOutput: new anchor.BN('18000000000'),
+  closeOrderId: orderId,
+  closeOrderIndices: [...],
+  payer: wallet.publicKey,
+  userSolAccount: orderOwner
+});
+```
+
+### Data Queries
+
+```javascript
+// Get token list
+const tokens = await sdk.fast.mints({ limit: 10 });
+
+// Get token price
+const price = await sdk.data.price(mint);
+
+// Get orders
+const orders = await sdk.data.orders(mint, { type: 'down_orders' });
+
+// Get user orders
+const userOrders = await sdk.data.user_orders(userAddress, mint);
+```
+
+### Trade Simulation
+
+```javascript
+// Simulate buy before execution
+const simulation = await sdk.simulator.simulateTokenBuy(mint, buyTokenAmount);
+
+console.log('Completion:', simulation.completion + '%');
+console.log('Slippage:', simulation.slippage + '%');
+console.log('Suggested SOL:', simulation.suggestedSolAmount);
+
+// Use simulation results in actual trade
+const result = await sdk.trading.buy({
+  mintAccount: mint,
+  buyTokenAmount: new anchor.BN(buyTokenAmount),
+  maxSolAmount: new anchor.BN(simulation.suggestedSolAmount),
+  payer: wallet.publicKey
+});
+```
+
+## Development
+
+### Build
+
+```bash
+npm run build          # Build all distribution formats (CJS, ESM, UMD)
+npm run build:dev      # Watch mode for development
+```
+
+### Testing
+
+```bash
+# Run individual test files
+node tests/example-trading-buy.js
+node tests/test-closeShort.js
+
+# Standard test commands (coming soon)
+npm test
+```
+
+### Linting
+
+```bash
+npm run lint
+```
 
 ## Important Notes
 
-1. **SDK Initialization**: Starting from the new version, the SDK constructor no longer requires the `wallet` parameter. The `payer` parameter needs to be provided in each method during transactions.
+1. **Data Source Selection**
+   - `fast` (API) - Fast responses, may have slight delays during peak times
+   - `chain` (Direct) - More reliable, slower, no third-party dependencies
 
-2. **Numerical Precision**: All amount-related parameters need to use `anchor.BN` type. Note that SOL precision is 10^9, token precision is usually 10^6 or 10^9.
+2. **Transaction Signing**
+   - SDK returns unsigned transactions
+   - Signing must be done externally for security
+   - Compatible with hardware wallets and browser extensions
 
-3. **Transaction Signing**: The `transaction` object returned by SDK needs to be signed and sent by users themselves. SDK does not automatically execute transactions. Supports various wallet adapters.
+3. **Error Handling**
+   - All async methods can throw exceptions
+   - Always implement proper error handling
+   - Use try-catch blocks around SDK calls
 
-4. **Data Source Selection**: Global data source can be configured through `defaultDataSource`, or temporarily specified through `dataSource` parameter in specific methods.
-
-5. **Order Queries**: Before executing close operations, order data needs to be obtained first through `sdk.data.orders()` or corresponding modules, and processed using utility methods.
-
-6. **Network Configuration**: Different network environments require corresponding configuration parameters. It's recommended to use `getDefaultOptions()` to get them.
-
-7. **Error Handling**: All async methods may throw exceptions. It's recommended to use try-catch for error handling.
-
-8. **Debug Features**: Debug logging can be enabled through `debug_log_path` configuration for easier problem tracking during development.
-
----
-
-## License
-
-MIT
+4. **Precision**
+   - Always use `anchor.BN` for amounts
+   - Remember decimal places: SOL (9), Token (6)
+   - Use CurveAMM utilities for price conversions
 
 ## Contributing
 
-Please refer to the contributing guidelines in the repository.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Support
 
-For issues and questions, please visit the [GitHub repository](https://github.com/your-repo/pinpet-sdk).
+- **Documentation**: [./doc/README.md](./doc/README.md)
+- **Issues**: [GitHub Issues](https://github.com/your-org/pinpet-sdk/issues)
+- **Discord**: [Join our community](https://discord.gg/spinpet)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Related Links
+
+- [SpinPet Protocol](https://spinpet.io)
+- [Solana Documentation](https://docs.solana.com)
+- [Anchor Framework](https://www.anchor-lang.com)
+
+---
+
+**Version**: 2.0.0
+**Last Updated**: 2024-12-09

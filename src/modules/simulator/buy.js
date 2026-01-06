@@ -278,14 +278,13 @@ async function simulateBuy(mint, buySolAmount) {
 
 /**
  * Simulate token buy transaction - calculate if target token amount can be purchased
- * 模拟以 Token 数量为目标的买入交易 - 计算是否能买到指定数量的 Token
- * @param {string} mint - Token address 代币地址
- * @param {bigint|string|number} buyTokenAmount - Target token amount to buy 目标购买的 Token 数量
- * @param {string} passOrder - Optional order address to skip (won't be liquidated) 可选的跳过订单地址
- * @returns {Promise<Object>} Token buy simulation result 模拟结果
+ * @param {string} mint - Token address
+ * @param {bigint|string|number} buyTokenAmount - Target token amount to buy
+ * @param {string} passOrder - Optional order address to skip (won't be liquidated)
+ * @returns {Promise<Object>} Token buy simulation result
  */
 async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
-    // 初始化返回结果 Initialize return result
+    // Initialize return result
     const result = {
         success: false,
         errorCode: null,
@@ -294,14 +293,14 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
     };
 
     try {
-        // 参数验证 Parameter validation
+        // Parameter validation
         if (!mint || typeof mint !== 'string') {
             result.errorCode = 'INVALID_MINT';
             result.errorMessage = 'Invalid mint address';
             return result;
         }
 
-        // 转换并验证 token 数量 Convert and validate token amount
+        // Convert and validate token amount
         const targetTokenAmount = typeof buyTokenAmount === 'bigint' ? 
             buyTokenAmount : BigInt(buyTokenAmount);
             
@@ -311,14 +310,14 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
             return result;
         }
 
-        // 验证 passOrder 参数 Validate passOrder parameter
+        // Validate passOrder parameter
         if (passOrder !== null && typeof passOrder !== 'string') {
             result.errorCode = 'INVALID_PASS_ORDER';
             result.errorMessage = 'Pass order must be a valid address string';
             return result;
         }
 
-        // 获取当前价格 Get current price
+        // Get current price
         let currentPrice;
         try {
             const priceString = await this.sdk.data.price(mint);
@@ -329,7 +328,6 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
             return result;
         }
 
-        // 获取做空订单列表（限制为 MAX_ORDERS_COUNT + 1）
         // Get short order list (limited to MAX_ORDERS_COUNT + 1)
         let orders;
         try {
@@ -344,7 +342,7 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
                 return result;
             }
             
-            // 转换订单格式 Convert order format
+            // Convert order format
             orders = ordersData.data.orders;
         } catch (error) {
             result.errorCode = 'API_ERROR';
@@ -352,7 +350,6 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
             return result;
         }
 
-        // 场景 A: 无订单，直接计算
         // Scenario A: No orders, direct calculation
         if (orders.length === 0) {
             const calcResult = CurveAMM.buyFromPriceWithTokenOutput(currentPrice, targetTokenAmount);
@@ -390,21 +387,20 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
             }
         }
 
-        // 初始化变量 Initialize variables
-        let totalAvailableToken = 0n;  // 累积可购买的 token
-        let totalTokenValue = 0n;      // 包含订单锁定的 token
-        let previousAvailable = 0n;    // 上一次的可用量
-        let ordersToClose = [];        // 需要平仓的订单索引
-        let passOrderIndex = null;     // 跳过的订单索引
-        let targetReached = false;     // 是否达到目标
-        let finalLpPairsIndex = -1;    // 最终区间索引
-        let segments = [];             // 详细的区间信息
+        // Initialize variables
+        let totalAvailableToken = 0n;  // Cumulative token amount purchasable
+        let totalTokenValue = 0n;      // Token amount including locked orders
+        let previousAvailable = 0n;    // Previous available amount
+        let ordersToClose = [];        // Order indices to liquidate
+        let passOrderIndex = null;     // Index of skipped order
+        let targetReached = false;     // Whether target reached
+        let finalLpPairsIndex = -1;    // Final segment index
+        let segments = [];             // Detailed segment information
 
-        // 计算订单数量是否超限 Check if orders exceed limit
+        // Check if orders exceed limit
         const hasMoreOrders = orders.length > this.sdk.MAX_ORDERS_COUNT;
         const processableOrders = Math.min(orders.length, this.sdk.MAX_ORDERS_COUNT);
 
-        // 第一步：计算从当前价格到第一个订单前的流动性
         // Step 1: Calculate liquidity from current price to first order
         if (orders.length > 0) {
             const firstOrderStartPrice = BigInt(orders[0].lock_lp_start_price);
@@ -430,15 +426,13 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
             }
         }
 
-        // 第二步：遍历订单，累积计算
         // Step 2: Iterate orders and calculate cumulatively
         for (let i = 0; i < processableOrders && !targetReached; i++) {
             const order = orders[i];
             const isPassOrder = passOrder && order.order_pda === passOrder;
             
-            // 处理订单 Process order
+            // Process order
             if (isPassOrder) {
-                // 跳过的订单：流动性可用但不平仓
                 // Skipped order: liquidity available but not liquidated
                 previousAvailable = totalAvailableToken;
                 totalAvailableToken += BigInt(order.lock_lp_token_amount);
@@ -455,7 +449,7 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
                     isPassOrder: true
                 });
             } else {
-                // 需要平仓的订单 Order to be liquidated
+                // Order to be liquidated
                 totalTokenValue += BigInt(order.lock_lp_token_amount);
                 ordersToClose.push(i);
                 
@@ -470,17 +464,16 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
                 });
             }
             
-            // 检查是否达到目标 Check if target reached
+            // Check if target reached
             if (totalAvailableToken >= targetTokenAmount) {
                 targetReached = true;
                 finalLpPairsIndex = i;
                 break;
             }
             
-            // 检查 next_order Check next_order
+            // Check next_order
             const nextOrderAddress = order.next_order || null;
             if (!nextOrderAddress) {
-                // 链表结束，上方有无限空间
                 // Chain ends, unlimited space above
                 finalLpPairsIndex = i;
                 previousAvailable = totalAvailableToken;
@@ -497,12 +490,12 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
                 break;
             }
             
-            // 处理订单间隙 Process gap between orders
+            // Process gap between orders
             if (i < orders.length - 1 && i < this.sdk.MAX_ORDERS_COUNT - 1) {
                 const gapStartPrice = BigInt(order.lock_lp_end_price);
                 const gapEndPrice = BigInt(orders[i + 1].lock_lp_start_price);
                 
-                // 检查间隙是否存在 Check if gap exists
+                // Check if gap exists
                 if (gapStartPrice < gapEndPrice) {
                     const gapResult = CurveAMM.buyFromPriceToPrice(gapStartPrice, gapEndPrice);
                     if (gapResult) {
@@ -527,7 +520,6 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
                     }
                 }
             } else if (i === processableOrders - 1 && hasMoreOrders) {
-                // 最后一个可处理订单且还有更多订单
                 // Last processable order with more orders beyond
                 const lastGapStartPrice = BigInt(order.lock_lp_end_price);
                 const lastGapEndPrice = BigInt(orders[i + 1].lock_lp_start_price);
@@ -557,12 +549,11 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
             }
         }
 
-        // 计算理想情况（无订单阻碍）
         // Calculate ideal case (no order obstacles)
         const idealResult = CurveAMM.buyFromPriceWithTokenOutput(currentPrice, targetTokenAmount);
         const [idealEndPrice, idealSolRequired] = idealResult || [0n, 0n];
 
-        // 计算实际参数 Calculate actual parameters
+        // Calculate actual parameters
         let actualRequiredSol = 0n;
         let actualObtainableToken = 0n;
         let actualEndPrice = currentPrice;
@@ -570,40 +561,38 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
         let limitReason = null;
 
         if (targetReached) {
-            // 能完成交易，精确计算所需 SOL
             // Can complete trade, calculate exact SOL needed
             completionRate = 100.0;
             actualObtainableToken = targetTokenAmount;
             
-            // 计算精确的结束价格和所需 SOL
             // Calculate exact end price and required SOL
             if (finalLpPairsIndex === -1) {
-                // 在第一个区间就完成 Completed in first segment
+                // Completed in first segment
                 const exactResult = CurveAMM.buyFromPriceWithTokenOutput(currentPrice, targetTokenAmount);
                 if (exactResult) {
                     actualEndPrice = exactResult[0];
                     actualRequiredSol = exactResult[1];
                 }
             } else {
-                // 需要跨越多个区间 Need to cross multiple segments
-                // 计算剩余需要的 token Calculate remaining token needed
+                // Need to cross multiple segments
+                // Calculate remaining token needed
                 const remainingToken = targetTokenAmount - previousAvailable;
-                
-                // 找到最后的起始价格 Find final start price
+
+                // Find final start price
                 let lastStartPrice = currentPrice;
                 if (finalLpPairsIndex >= 0 && finalLpPairsIndex < orders.length) {
                     lastStartPrice = BigInt(orders[finalLpPairsIndex].lock_lp_end_price);
                 }
                 
-                // 计算最后区间的精确结果 Calculate exact result for last segment
+                // Calculate exact result for last segment
                 const partialResult = CurveAMM.buyFromPriceWithTokenOutput(lastStartPrice, remainingToken);
                 if (partialResult) {
                     actualEndPrice = partialResult[0];
                     
-                    // 计算总的 SOL 需求 Calculate total SOL requirement
+                    // Calculate total SOL requirement
                     const totalResult = CurveAMM.buyFromPriceToPrice(currentPrice, actualEndPrice);
                     if (totalResult) {
-                        // 减去订单占用的 SOL Subtract SOL locked in orders
+                        // Subtract SOL locked in orders
                         let lockedSol = 0n;
                         for (const idx of ordersToClose) {
                             if (idx < orders.length) {
@@ -615,7 +604,7 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
                 }
             }
         } else {
-            // 无法完成交易 Cannot complete trade
+            // Cannot complete trade
             actualObtainableToken = Math.min(totalAvailableToken, targetTokenAmount);
             
             if (targetTokenAmount > 0n && totalAvailableToken > 0n) {
@@ -623,7 +612,7 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
                 completionRate = Math.min(99.99, completionRate);
             }
             
-            // 判断限制原因 Determine limit reason
+            // Determine limit reason
             if (hasMoreOrders) {
                 limitReason = 'order_count_limit';
             } else if (totalAvailableToken < targetTokenAmount) {
@@ -632,7 +621,7 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
                 limitReason = 'unknown';
             }
             
-            // 计算能买到的部分所需的 SOL Calculate SOL for obtainable amount
+            // Calculate SOL for obtainable amount
             if (actualObtainableToken > 0n) {
                 const partialResult = CurveAMM.buyFromPriceWithTokenOutput(currentPrice, actualObtainableToken);
                 if (partialResult) {
@@ -642,61 +631,61 @@ async function simulateTokenBuy(mint, buyTokenAmount, passOrder = null) {
             }
         }
 
-        // 计算价格影响 Calculate price impact
+        // Calculate price impact
         let priceImpact = null;
         if (targetReached && actualEndPrice > currentPrice) {
             priceImpact = Number((actualEndPrice - currentPrice) * 10000n / currentPrice) / 100;
         }
 
-        // 计算最高可达价格 Calculate max reachable price
+        // Calculate max reachable price
         let maxReachablePrice = currentPrice;
         if (segments.length > 0) {
             const lastSegment = segments[segments.length - 1];
             maxReachablePrice = lastSegment.endPrice;
         }
 
-        // 设置成功结果 Set successful result
+        // Set successful result
         result.success = true;
         result.data = {
-            // 基本信息 Basic info
+            // Basic info
             inputType: 'token',
             inputAmount: targetTokenAmount,
             currentPrice: currentPrice,
             
-            // 可行性分析 Feasibility analysis
+            // Feasibility analysis
             canComplete: targetReached,
             completionRate: completionRate,
             limitReason: limitReason,
-            
-            // 理想情况 Ideal case
+
+            // Ideal case
             idealSolRequired: idealSolRequired,
             idealEndPrice: idealEndPrice,
-            
-            // 实际情况 Actual case
+
+            // Actual case
             actualObtainableToken: actualObtainableToken,
             actualRequiredSol: actualRequiredSol,
             actualEndPrice: actualEndPrice,
-            
-            // 订单处理 Order processing
+
+            // Order processing
             ordersToClose: ordersToClose,
             ordersToCloseCount: ordersToClose.length,
             passOrderIndex: passOrderIndex,
             hasMoreOrders: hasMoreOrders,
-            
-            // 流动性分析 Liquidity analysis
+
+            // Liquidity analysis
             totalAvailableToken: totalAvailableToken,
-            totalAvailableSol: actualRequiredSol, // 简化处理
-            
-            // 价格影响 Price impact
+            totalAvailableSol: actualRequiredSol,
+
+            // Price impact
             priceImpact: priceImpact,
             maxReachablePrice: maxReachablePrice,
-            
-            // 详细信息 Detailed info
+
+            // Detailed info
             segments: segments
         };
 
     } catch (error) {
-        // 捕获意外错误 Catch unexpected errors
+        // Catch unexpected errors
         result.errorCode = 'UNEXPECTED_ERROR';
         result.errorMessage = `Unexpected error: ${error.message}`;
     }
